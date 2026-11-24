@@ -1,0 +1,22 @@
+{
+  "name": "eqlpathfinder-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
+    "preview": "npm run build && vite preview",
+    "deploy": "tsc --noEmit && cf deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^2.0.0-rc.1",
+    "@types/node": "^26.6.6",
+    "cf": "^1.0.0-rc.1",
+    "sharp": "^0.35.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  },
+  "allowScripts": {
+    "workerd@1.20261117.1": true
+  }
+}

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EqlPathfinder.App/EqlPathfinder.App.csproj" />
+    <Project Path="src/EqlPathfinder.Cli/EqlPathfinder.Cli.csproj" />
+    <Project Path="src/EqlPathfinder.Engine/EqlPathfinder.Engine.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EqlPathfinder.Engine.Tests/EqlPathfinder.Engine.Tests.csproj" />
+  </Folder>
+</Solution>

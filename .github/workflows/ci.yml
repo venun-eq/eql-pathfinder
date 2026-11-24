@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: Build, engine & page tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Repo checks & samples
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check.ps1 -SamplesOnly
+
+      - name: Build (Release)
+        run: dotnet build EQLPathfinder.slnx -c Release --nologo
+
+      - name: C# formatting & using sort
+        run: dotnet format EQLPathfinder.slnx --no-restore --verify-no-changes
+
+      - name: Engine & page tests
+        run: dotnet test tests/EqlPathfinder.Engine.Tests -c Release --no-build --nologo
+
+      - name: Page scripts check
+        run: node tools/webcheck.mjs
+
+  server-and-site:
+    name: Server Worker, website & lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: JS/TS/JSON lint & format (Biome)
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+
+      - name: Server typecheck & tests
+        working-directory: server
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm test
+
+      - name: Site build
+        working-directory: site
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build

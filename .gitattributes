@@ -1,0 +1,22 @@
+* text=auto
+
+# Shell scripts and git hooks always keep LF; Windows scripts keep CRLF so Windows PowerShell 5.1 and cmd.exe read them cleanly.
+*.sh text eol=lf
+.githooks/* text eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary files.
+*.png binary
+*.webp binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.db binary
+*.zip binary
+*.gz binary
+*.exe binary

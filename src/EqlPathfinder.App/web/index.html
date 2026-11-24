@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EQL Pathfinder</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<nav class="rail" aria-label="Sections">
+  <button data-page="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11L12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/></svg>Home</button>
+  <button data-page="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5h14A1.5 1.5 0 0 1 20.5 6v9a1.5 1.5 0 0 1-1.5 1.5h-7L7.5 20v-3.5H5A1.5 1.5 0 0 1 3.5 15V6A1.5 1.5 0 0 1 5 4.5z"/><path d="M10 9a2 2 0 1 1 2.8 1.8c-.5.2-.8.7-.8 1.2"/><path d="M12 14.2v.1"/></svg>Ask</button>
+  <button data-page="planning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>Plan</button>
+  <button data-page="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>History</button>
+  <button data-page="upgrade"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l8.5 8.5-8.5 8.5L3.5 12z"/><path d="M12 15.5v-7M9 11.2l3-3 3 3"/></svg>Upgrades</button>
+  <span class="grow"></span>
+  <!-- Report a problem (report.js): from whatever page is open, with a screenshot of it. Not a page of its own. -->
+  <button data-report title="Report a problem on this page, with a screenshot (Ctrl+Shift+R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7.6V6.5a3 3 0 0 1 6 0v1.1"/><rect x="7" y="7.6" width="10" height="12" rx="5"/><path d="M12 11.5v8M7 12.5H3.5M20.5 12.5H17M7.4 16.8l-2.9 2M16.6 16.8l2.9 2M7.6 9.6L5 7.5M16.4 9.6L19 7.5"/></svg>Report</button>
+  <button data-page="help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .8-1 1.5v.6"/><path d="M12 16.8h.01"/></svg>Help</button>
+  <button data-page="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Settings</button>
+</nav>
+
+<main id="main">
+  <!-- ============================================================ Home -->
+  <section class="page" id="page-home">
+    <!-- One-time notices across the top of Home (notices.js): shown until answered, then never again. -->
+    <section class="card notice" id="homeNotice" role="status" hidden></section>
+    <div class="home">
+      <div class="stack">
+        <section class="card hero" id="homeHero" aria-label="Where you are"><div class="empty">Reading your history…</div></section>
+        <!-- By what you're doing (home.js): the race while releveling, your relevels between them, drops while farming. -->
+        <div class="stack" id="homeMain"></div>
+      </div>
+      <div class="stack">
+        <section class="card" id="homeShare" style="padding: 16px 18px 14px" aria-label="Sharing and the beta" hidden></section>
+        <div class="stack" id="homeSide"></div>
+        <section class="card" id="homeUpNextCard" style="padding: 16px 18px 4px" aria-label="Up next">
+          <div class="between"><div class="h">Up next</div><button class="link" data-go="campaign">Campaign →</button></div>
+          <div id="upNext" style="margin-top: 10px"></div>
+        </section>
+        <section class="card" id="homeRosterCard" style="padding: 16px 18px" aria-label="Roster">
+          <div class="between"><div class="h">Roster</div><button class="link" data-go="roster">Open roster →</button></div>
+          <div id="homeRoster"></div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ Plan -->
+  <section class="page" id="page-ask" hidden><div class="ask" id="askBody"></div></section>
+
+
+  <!-- ============================================================ Campaign -->
+  <section class="page" id="page-campaign" hidden>
+    <div class="subtabs" data-group="planning"></div>
+    <div id="campBody"></div>
+  </section>
+
+  <!-- ============================================================ Class roles -->
+  <section class="page" id="page-classroles" hidden>
+    <div class="subtabs" data-group="planning"></div>
+    <div id="rolesBody"></div>
+  </section>
+
+  <!-- ============================================================ Roster -->
+  <section class="page" id="page-roster" hidden>
+    <div class="subtabs" data-group="planning"></div>
+    <div class="roster">
+      <div style="min-width: 0">
+        <div id="countsBanner"></div>
+        <div class="between"><span class="h2">Classes</span><span class="row" style="gap: 14px"><span class="muted num" id="classCount"></span><button class="link" id="editCounts">Set counts…</button></span></div>
+        <div class="tiles4" id="classTiles" style="margin-top: 10px"></div>
+        <div class="between" style="margin-top: 20px"><span class="h2">Races</span><span class="muted num" id="raceCount"></span></div>
+        <div class="tiles6" id="raceTiles" style="margin-top: 10px"></div>
+      </div>
+      <aside class="card detail" id="rosterDetail" aria-live="polite"></aside>
+    </div>
+  </section>
+
+
+  <!-- ============================================================ Visits -->
+  <section class="page" id="page-crawls" hidden>
+    <div class="subtabs" data-group="history"></div>
+    <div class="tiles" id="crawlTiles"></div>
+    <div class="filters">
+      <input type="search" id="q" placeholder="Filter by zone, trio or race (e.g. Kedge, PAL, D4)" aria-label="Filter visits">
+      <div class="seggroup" role="group" aria-label="Kind of visit" id="visitKindSeg"></div>
+      <label><input type="checkbox" id="hideShort" checked> Hide visits too short to judge</label>
+      <span class="count" id="crawlCount"></span>
+    </div>
+    <div class="tablewrap tall"><table id="crawlTable"><thead></thead><tbody></tbody></table></div>
+    <p class="note">Time runs from zoning in to zoning out; hover it to see where the minutes went. Rates use active minutes: time inside the instance until the crawl completed, minus idle (any gap with no kills, from zoning in to the end, beyond 3 minutes).
+      Levels = kill XP + crawl reward XP. The log never says how big a reward is, so it's sized when your next level dings
+      (<span class="gold">+R?</span> until then, <span class="dim">~</span> when two rewards shared a level and were split evenly).
+      At 50 the XP bar still fills, but no level follows, so those visits have no Gained or Lv/h.</p>
+  </section>
+
+  <!-- ============================================================ Loot -->
+  <section class="page" id="page-loot" hidden>
+    <div class="subtabs" data-group="history"></div>
+    <div class="between"><span class="h2">Loot</span><span class="sub" id="lootSince"></span></div>
+    <div class="filters" style="margin-top: 12px">
+      <select id="lootZone" aria-label="Where"></select>
+      <div class="seggroup" role="group" aria-label="Source" id="lootSourceSeg"><button data-v="all">All sources</button><button data-v="kill">Kills</button><button data-v="chest">Reward Chests</button></div>
+      <div class="seggroup" role="group" aria-label="When" id="lootTimeSeg"><button data-v="all">All time</button><button data-v="30d">30 days</button><button data-v="7d">7 days</button><button data-v="24h">24 hours</button></div>
+      <span class="count" id="lootStatus"></span>
+    </div>
+    <div class="tiles" id="lootTiles"></div>
+    <section class="card" style="padding: 14px 18px 8px" aria-label="Distribution by tier">
+      <div class="between" style="align-items: center">
+        <div><span style="font-weight: 650">Distribution by tier</span> <span class="dim" style="font-size: 12px" id="lootScaleNote"></span></div>
+        <div class="row" style="gap: 16px">
+          <span class="legend"><span><i style="background: #7d8894"></i>motes</span><span><i style="background: var(--gold)"></i>fragments</span></span>
+          <div class="seggroup" role="group" aria-label="Measure" id="lootMeasureSeg"><button data-v="count">Count</button><button data-v="t5">T5-eq</button></div>
+        </div>
+      </div>
+      <div class="chart" id="lootChart"></div>
+    </section>
+    <section class="card" style="padding: 14px 18px 8px; margin-top: 14px" aria-label="By tier">
+      <div class="between"><span style="font-weight: 650">By tier</span><span class="dim" style="font-size: 12px" id="rateNote"></span></div>
+      <table id="ledgerTable" style="margin-top: 8px"><thead></thead><tbody></tbody></table>
+    </section>
+    <div class="filters" style="margin-top: 16px">
+      <span style="font-weight: 650">Drops</span>
+      <div class="seggroup" role="group" aria-label="Which drops" id="dropSeg">
+        <button data-drops="frag">Every fragment</button><button data-drops="high">Above T5</button><button data-drops="all">Everything</button>
+      </div>
+      <span class="count" id="dropCount"></span>
+    </div>
+    <div class="tablewrap tall"><table id="dropTable"><thead></thead><tbody></tbody></table></div>
+    <div id="dropMore" style="margin-top: 8px"></div>
+    <p class="note">Each drop is what you looted, before any condensing at Constructed Potential. T5-eq: Major 1,
+      doubling each tier up and halving each tier down; a fragment counts as a same-tier mote times its value in Settings (how high you take mote-fed gear). Totals are
+      what you looted: the log doesn't record spending fragments, so your in-game currency can be lower.</p>
+  </section>
+
+  <!-- ============================================================ Relevels (race.js) -->
+  <section class="page" id="page-relevels" hidden>
+    <div class="subtabs" data-group="history"></div>
+    <div id="relevelsBody"></div>
+  </section>
+
+  <!-- ============================================================ Upgrades -->
+  <section class="page" id="page-upgrade" hidden>
+    <div class="between"><span class="h2">Upgrades</span><span class="sub" id="upInvNote"></span></div>
+    <div class="plan" style="margin-top: 12px">
+      <div class="stack">
+        <section class="card" style="padding: 16px 20px 10px" aria-label="What to raise">
+          <div class="between" style="align-items: center"><span class="h">What to raise</span>
+            <div class="seggroup" role="group" aria-label="Item or spell" id="upTarget"><button data-v="gear">Item</button><button data-v="spell">Spell</button></div></div>
+          <div class="upform">
+            <div id="upItemRow"><label for="upItem">Item</label>
+              <div class="combo"><input type="search" id="upItem" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="upItems"
+                placeholder="Search your gear, or type any name" autocomplete="off" spellcheck="false">
+                <div class="combolist" id="upItems" role="listbox" aria-label="Your gear" hidden></div></div></div>
+            <div id="upSpellNow" class="upnow"><label>Now <select id="upTierSel" aria-label="Tier now"></select></label>
+              <label>Points in <input type="number" id="upProg" min="0" step="1" style="width: 76px" aria-label="Points already in this tier"> <span class="dim num" id="upProgMax"></span></label></div>
+            <label>Goal <select id="upGoalSel" aria-label="Goal tier"></select></label>
+            <label>VTPs<span data-info-slot="vtp"></span> <select id="upVtpSel" aria-label="Void-Touched Potentials to use"></select></label>
+          </div>
+          <div id="upCopies" class="upcopies"></div>
+        </section>
+        <section class="card" style="padding: 16px 20px 8px" aria-label="The cheapest way" id="upPlan"><div class="empty">Working it out…</div></section>
+      </div>
+      <section class="card" style="padding: 16px 18px" aria-label="Your motes" id="upBank"></section>
+    </div>
+    <p class="note">A mote or fragment goes into items up to one tier below its own (a Fragment of Grand fits up to +7); spells have no limit.
+      Fragments condense 2:1 like motes, so a fragment is worth most condensed up and put into your highest gear: the plan uses them on +8 → +9 when a
+      Void-Touched Potential does +9 → +10, and on +9 → +10 when none does. It doesn't spend them on spells or lower gear. Motes are counted at their T5-eq and fragments at that best use. Points past the goal carry into the next tier. The numbers come from the in-game preview (docs: motes and fragments).</p>
+  </section>
+
+  <!-- ============================================================ Help -->
+  <section class="page" id="page-help" hidden>
+    <section class="card" style="padding: 16px 18px; margin-bottom: 20px; max-width: 1100px; display: flex; justify-content: space-between; align-items: center; gap: 16px">
+      <div><div class="h">New here, or showing a friend?</div>
+        <p style="margin: 4px 0 0; color: var(--soft)">The welcome tour covers turning your log on, reincarnations from before your log, and the overlay. About a minute.</p></div>
+      <button class="btn primary" data-action="tour">Show the welcome tour</button>
+    </section>
+    <section class="card online">
+      <div><div class="h">Pathfinder online</div>
+        <p style="margin: 4px 0 0; color: var(--soft)">Talk with other players on Discord. The code is open on GitHub, where you can also open an issue. For a bug, <b>Report</b> on the left is still quickest: it brings the screenshot.</p></div>
+      <div class="row">
+        <a class="btn" href="https://eqlpathfinder.com/discord" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.317 4.37a19.79 19.79 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.74 19.74 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.1 13.1 0 01-1.872-.892.077.077 0 01-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 01.078-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.079.009c.12.099.246.198.373.292a.077.077 0 01-.006.127 12.3 12.3 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.84 19.84 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>Discord</a>
+        <a class="btn" href="https://eqlpathfinder.com/github" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
+        <a class="btn" href="https://eqlpathfinder.com" target="_blank" rel="noopener">eqlpathfinder.com</a>
+      </div>
+    </section>
+    <div class="help" style="margin-bottom: 20px">
+      <section class="card" aria-label="Send feedback">
+        <div class="h">Send feedback</div>
+        <p style="margin: 4px 0 10px; color: var(--soft)">A bug, an idea, something confusing: it goes straight to whoever builds Pathfinder, and helps decide what's next.
+          Something wrong on a page? Press <b>Report</b> on the left while you're on it (or <b>Ctrl+Shift+R</b>): it takes the screenshot for you.</p>
+        <div id="fbKind"></div>
+        <textarea id="fbText" rows="5" maxlength="4000" placeholder="What happened, or what would help?" aria-label="Your feedback"
+          style="width: 100%; margin-top: 10px; box-sizing: border-box; resize: vertical; font: inherit; color: var(--text); background: var(--inset, #11161c); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px"></textarea>
+        <input id="fbContact" maxlength="60" placeholder="Your character name, if you'd like a reply (optional)" aria-label="Your character name (optional)"
+          style="width: 100%; margin-top: 8px; box-sizing: border-box; font: inherit; color: var(--text); background: var(--inset, #11161c); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px">
+        <label class="dim" style="display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 12.5px"><input type="checkbox" id="fbErrors"> Include my error log (helps with bugs; it names files on this PC)</label>
+        <div class="row" style="margin-top: 10px; gap: 12px; align-items: center"><button class="btn primary" id="fbSend">Send</button><span class="dim" id="fbStatus" style="font-size: 12.5px" aria-live="polite"></span></div>
+      </section>
+      <section class="card" aria-label="What's coming">
+        <div class="between"><div class="h">What's coming</div><span class="dim" style="font-size: 12px">vote for what you want most</span></div>
+        <div id="roadmap" style="margin-top: 8px"><div class="dim">Loading…</div></div>
+      </section>
+      <section class="card wide" aria-label="Your reports">
+        <div class="between"><div class="h">Your reports</div><span class="dim" style="font-size: 12px">what you sent from this copy, and what happened to it</span></div>
+        <div id="myReports" style="margin-top: 8px"><div class="dim">Loading…</div></div>
+      </section>
+    </div>
+    <div class="h2" style="margin-bottom: 4px">How Pathfinder counts</div>
+    <p class="dim" style="margin: 0 0 14px; max-width: 760px">The rules behind every number in the app.</p>
+    <div class="help counts">
+      <div class="group">Your data</div>
+      <section class="card"><div class="h">What it reads and sends</div>
+        <div class="sub">Reads, on this PC</div>
+        <ul>
+          <li>Your EverQuest Legends log (type <b>/log on</b> in game once).</li>
+          <li>Your inventory export (<b>/outputfile inventory</b>), for Upgrades.</li>
+          <li>The game's spell file, to tell which class cast what.</li>
+        </ul>
+        <p>It never reads game memory, never changes game files and never plays for you.</p>
+        <div class="sub">Sends</div>
+        <ul>
+          <li>Your play, as numbers, only if you turn on sharing. Settings → Sharing shows exactly what goes.</li>
+          <li>Feedback and reports, only when you press Send. A report's screenshot shows Pathfinder's page alone, with your character's name, clock times and folders hidden, and you see it first.</li>
+          <li>Otherwise it only downloads: updates, the numbers players share, and What's coming.</li>
+        </ul></section>
+      <section class="card"><div class="h">Numbers from other players</div>
+        <ul>
+          <li>Rebuilt every 30 minutes from the crawls and hunts of players who share. No character names, no chat, no clock times.</li>
+          <li>A number shows only once enough players and crawls are behind it. Ask says how many.</li>
+          <li>One very active player can't drown out the rest: each player's weight in a number is capped.</li>
+          <li>Everyone gets them, whether or not they share.</li>
+          <li>Leaving sharing stops new uploads; Settings → Sharing can also delete everything you sent.</li>
+        </ul></section>
+
+      <div class="group">Time</div>
+      <section class="card wide"><div class="h">Crawls and active time</div>
+        <p>Every "per hour" in Pathfinder divides by active time: the gold below. Grey isn't counted.</p>
+        <figure class="timeline">
+          <svg viewBox="0 0 1000 200" role="img" aria-labelledby="tlTitle">
+            <title id="tlTitle">Active time: inside an instance, quiet time past 3 minutes and time outside aren't counted; in the open world, stretches of kills no more than 4 minutes apart count and travel between them doesn't.</title>
+            <text x="0" y="16" class="lane">In an instance</text>
+            <text x="0" y="38">zone in</text>
+            <text x="520" y="38" text-anchor="end">leave</text>
+            <text x="600" y="38">back in 10 min</text>
+            <text x="800" y="38" text-anchor="middle" class="gold">crawl completes</text>
+            <text x="900" y="38" text-anchor="middle">leave</text>
+            <path class="mark" d="M520 43V74M600 43V74M900 43V74" />
+            <path class="mark gold" d="M800 43V74" />
+            <rect class="on" x="0" y="56" width="340" height="12" rx="3" />
+            <rect class="off" x="340" y="56" width="60" height="12" rx="3" />
+            <rect class="on" x="400" y="56" width="120" height="12" rx="3" />
+            <path class="away" d="M524 62H596" />
+            <rect class="on" x="600" y="56" width="300" height="12" rx="3" />
+            <path class="kill" d="M10 46V53M28 46V53M46 46V53M64 46V53M82 46V53M100 46V53M118 46V53M136 46V53M154 46V53M172 46V53M190 46V53M208 46V53M226 46V53M244 46V53M262 46V53M280 46V53M406 46V53M424 46V53M442 46V53M460 46V53M478 46V53M496 46V53M514 46V53M612 46V53M630 46V53M648 46V53M666 46V53M684 46V53M702 46V53M720 46V53M738 46V53M756 46V53M774 46V53M792 46V53M818 46V53M836 46V53M854 46V53M872 46V53M890 46V53" />
+            <text x="370" y="90" text-anchor="middle">quiet past 3 min: not counted</text>
+            <text x="560" y="90" text-anchor="middle">outside: not counted</text>
+            <text x="850" y="90" text-anchor="middle">kills after it still count</text>
+
+            <text x="0" y="122" class="lane">In the open world</text>
+            <text x="0" y="142">a stretch: kills no more than 4 min apart</text>
+            <text x="420" y="142">another stretch</text>
+            <rect class="on" x="0" y="156" width="230" height="12" rx="3" />
+            <path class="away" d="M234 162H416" />
+            <rect class="on" x="420" y="156" width="340" height="12" rx="3" />
+            <path class="kill" d="M8 147V154M30 147V154M61 147V154M84 147V154M120 147V154M139 147V154M171 147V154M198 147V154M226 147V154M426 147V154M455 147V154M480 147V154M512 147V154M550 147V154M574 147V154M601 147V154M640 147V154M668 147V154M700 147V154M731 147V154M756 147V154" />
+            <text x="325" y="190" text-anchor="middle">over 4 min apart: travel, not counted</text>
+          </svg>
+        </figure>
+        <div class="cols">
+          <div><div class="sub">A crawl</div>
+            <ul>
+              <li>Starts when you zone into a difficulty instance ("… 4 (Refined)").</li>
+              <li>Ends when the Dungeon Crawl completes, or when you leave a normal instance.</li>
+              <li>Leave and come back within 10 minutes and it's the same crawl, unless you made a new instance. Time outside isn't counted.</li>
+              <li>Kills after the crawl completes still count, and so does their time.</li>
+            </ul></div>
+          <div><div class="sub">Relevels</div>
+            <ul>
+              <li>A relevel is a trio's crawls and open-world hunting from its reincarnation until it reaches the cap.</li>
+              <li>Its hours are active time, so travel isn't counted.</li>
+              <li>Ask scales older visits to how fast you play now: gear, upgrades and AAs make you faster month by month (August visits ran about half again as long as November's), so a place last played months ago isn't predicted at an old pace. Ask says how much under each answer.</li>
+              <li>The race (Home while you relevel, and History → Relevels) shows your best relevel, the middle half of them as a band and the typical one dashed. Your relevel in progress is gold; its dashed part is the rest of the way at your finished trios' pace, adjusted by how this trio has gone so far.</li>
+              <li>Each reincarnation rank makes every level need 10% more XP (mobs give the same XP; the bar is bigger), so relevels at different ranks compare at the same XP: your best is scaled to what the trio you're on, or the next one, needs.</li>
+              <li>Home follows what you're doing: a relevel in progress, farming at the cap (a crawl at the cap in the last 2 hours), or between relevels. At the cap you can switch it.</li>
+            </ul></div>
+        </div></section>
+
+      <section class="card wide" id="help-pace" aria-label="Am I going at a proper speed?"><div class="h">Am I going at a proper speed?</div>
+        <p>Levels an hour can't say on its own: it falls every level, and your reincarnation XP, a group or a different place move it too. So Pathfinder splits it into the part you control and the part the place decides, and compares each like for like. Your numbers are always shown as they happened; only the comparison adjusts.</p>
+        <div class="paceeq" aria-label="Levels an hour equals kill speed times XP per kill">
+          <div><b class="num">2.9</b> levels/h<div class="dim">what happened</div></div><span aria-hidden="true">=</span>
+          <div><b class="num">4.0</b> kills/min<div class="dim">kill speed · you</div></div><span aria-hidden="true">×</span>
+          <div><b class="num">1.21%</b> a kill<div class="dim">XP per kill · the place</div></div>
+        </div>
+        <p><b>Kill speed</b> is against your usual at the same place and difficulty, within 2 levels, solo or grouped the same, from 3 or more runs. Your reincarnation XP doesn't change it. <b>XP per kill</b> is against what that place gives at your level and XP. Every place gives about 8% less a kill each level, so it's compared at your own level, never against easier levels. It's the share of a level a kill fills, so it also reads smaller after a reincarnation: the mob gives the same XP, your bar is bigger.</p>
+        <div class="tablewrap" style="margin-top: 10px"><table>
+          <thead><tr><th class="l">What changes XP per kill</th><th class="l">How the comparison keeps it fair</th></tr></thead>
+          <tbody>
+            <tr><td class="l">Reincarnation</td><td class="l">Not the mob's XP: each reincarnation makes every level need 10% more, so the same kill fills a smaller share of a bigger bar. The most-reincarnated of your trio and race sets it. A run that needed other XP is re-figured for yours, and says so ("9.3 h, or 10.2 h at +20% XP to level").</td></tr>
+            <tr><td class="l">Difficulty</td><td class="l">Only the same difficulty counts as your usual.</td></tr>
+            <tr><td class="l">Solo or group</td><td class="l">Solo against solo: a group splits each kill's XP.</td></tr>
+            <tr><td class="l">Mobs against your level</td><td class="l">Compared at your own level, so outleveling a place shows as the place, not as you being slow.</td></tr>
+            <tr><td class="l">Zone bonuses</td><td class="l">Only the same place counts as your usual.</td></tr>
+          </tbody></table></div>
+        <div class="pacewords">
+          <span class="chip good">On pace</span><span>Kill speed within one run's normal swing of your usual: ±15%, or ±18% when it rests on 3–4 runs. A single run swings about 14% for no reason at all.</span>
+          <span class="chip warn">24% slow</span><span>Below that. The overlay says whether it was the killing or the XP.</span>
+          <span class="chip amber">Fading</span><span>Your best place 3 levels back, clearly passed by another at your level. A past crawl is judged as it stood when you started it: only crawls before it count. "Clearly" means by more than the noise of both, and at least 10%.</span>
+          <span class="chip amber">Slower place</span><span>The same test for a place that was never the best.</span>
+          <span class="chip xp">+20% XP to level</span><span>Your reincarnation penalty, beside any time that's compared: each level needs that much more XP. Mobs give the same XP; the bar is bigger.</span>
+          <span class="chip">No usual yet</span><span>Under 3 runs near that level there. Once 3 players share the place, theirs show beside it, as context, never as a verdict.</span>
+        </div>
+        <p>On the overlay, a bar is green or red only when a verdict judges its number: Kill speed against your usual, XP per kill against what the place gives, T5-eq/h against your usual when you farm. Green is on pace, usual or better; red is below by more than a run's normal swing. The other rows, Levels/h among them, stay grey: their tick still shows where your usual sits.</p>
+        <p><b>Mostly D4.</b> More than half of a relevel&#39;s active hours were in crawls at that difficulty. Home compares a relevel only with yours played mostly at the same difficulty as Ask&#39;s route: a D4 relevel loots far more and levels slower than a D0 one, so their hours don&#39;t compare. When no difficulty has more than half, the relevel is mixed, and compares only with other mixed ones. Fastest or Counting motes on Home changes the route, and with it what you&#39;re compared with.</p>
+      </section>
+
+      <div class="group">Motes</div>
+      <section class="card wide" id="help-motes"><div class="h">Motes, fragments and T5-equivalent</div>
+        <p>T5-equivalent (T5-eq) puts every mote on one scale: spell points ÷ 16. A Major mote is 1, and each tier is worth twice the one below.</p>
+        <div class="tablewrap" style="margin-top: 12px">
+          <table>
+            <thead><tr><th class="l">Tier</th><th>T5-eq per mote</th><th>Mote → spell</th><th>Fragment → spell</th><th>Mote → gear</th><th>Fragment → gear</th><th>Fits items up to</th></tr></thead>
+            <tbody>
+              <tr><td class="l">1 Infinitesimal</td><td>1/16</td><td>1</td><td>2</td><td>1</td><td>2</td><td>+0</td></tr>
+              <tr><td class="l">2 Minor</td><td>1/8</td><td>2</td><td>4</td><td>2</td><td>3</td><td>+1</td></tr>
+              <tr><td class="l">3 Lesser</td><td>1/4</td><td>4</td><td>8</td><td>3</td><td>4</td><td>+2</td></tr>
+              <tr><td class="l">4 Potential</td><td>1/2</td><td>8</td><td>16</td><td>4</td><td>6</td><td>+3</td></tr>
+              <tr class="unit"><td class="l">5 Major</td><td>1</td><td>16</td><td>32</td><td>5</td><td>8</td><td>+4</td></tr>
+              <tr><td class="l">6 Greater</td><td>2</td><td>32</td><td>64</td><td>6</td><td>11</td><td>+5</td></tr>
+              <tr><td class="l">7 Superior</td><td>4</td><td>64</td><td>128</td><td>7</td><td>16</td><td>+6</td></tr>
+              <tr><td class="l">8 Grand</td><td>8</td><td>128</td><td>256</td><td>8</td><td>22</td><td>+7</td></tr>
+              <tr><td class="l">9 Ascendant</td><td>16</td><td>256</td><td>512</td><td>9</td><td>32</td><td>+8</td></tr>
+              <tr><td class="l">10 Infinite</td><td>32</td><td>512</td><td>1024</td><td>10</td><td>45</td><td>+9</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small">Points are what one mote or fragment adds. A few of the smallest and rarest values follow the pattern rather than an in-game check.</p>
+        <div class="cols">
+          <div><div class="sub">The rules</div>
+            <ul>
+              <li>Going from +t to +t+1 costs 2<sup>t</sup> points, on items and spells: +4 → +5 costs 16, +9 → +10 costs 512.</li>
+              <li>On a spell, a fragment adds what one mote of the next tier does: 2 same-tier motes. On gear it beats a mote by more the higher the item, up to 4.5 at +9 → +10, and fragments condense 2:1, so they belong on your highest gear. T5-eq counts a fragment at the value Settings gives it: What's a fragment worth?, below.</li>
+              <li>Condensing at Constructed Potential turns 2 motes into 1 of the next tier. Nothing is lost on spells, a lot on gear: 2 Majors are 10 gear points, the Greater they make is 6. Fragments condense the same way (since the 11-17 patch).</li>
+              <li>Reward Chest motes count.</li>
+            </ul></div>
+          <div><div class="sub">The upgrade plan</div>
+            <ul>
+              <li>The cheapest mix of your motes, your fragments and Majors still to farm.</li>
+              <li>A mote costs its T5-eq and a Void-Touched Potential takes a whole top tier. A fragment costs its best use up to +9, the recommendation: condensed to a Fragment of Ascendant in a +8 item. So the plan keeps fragments for your highest gear: +8 → +9, or +9 → +10 when no VTP does that tier.</li>
+              <li>Your mote counts come from you (Upgrades): the log shows loot and condensing, but not motes going into items or spells.</li>
+            </ul></div>
+        </div></section>
+
+      <section class="card wide" id="help-fragment" aria-label="What's a fragment worth?"><div class="h">What's a fragment worth?</div>
+        <p>Fragments condense 2:1 like motes: 32 Major fragments make 1 Fragment of Infinite, just as 32 Major motes make 1 Infinite mote. From the same 32, the fragment gives far more:</p>
+        <div class="paceeq" aria-label="Into a +9 item, a Fragment of Infinite gives 45 points and an Infinite mote 10, so there one fragment does the work of 4.5 motes">
+          <div><b class="num">45</b> points<div class="dim">Fragment of Infinite into a +9 item</div></div><span aria-hidden="true">÷</span>
+          <div><b class="num">10</b> points<div class="dim">Infinite mote into a +9 item</div></div><span aria-hidden="true">=</span>
+          <div><b class="num gold">4.5</b> motes<div class="dim">one fragment's work at +9 → +10</div></div>
+        </div>
+        <p>Used as it drops, a Major fragment gives an item at +4 or lower 8 points against a mote's 5: only 1.6 motes' worth. High-tier points are the costly ones, so that's where a fragment saves most, and why condensing fragments up is worth it.</p>
+        <div class="cols">
+          <div><div class="sub">What one is worth depends on where your last fragment goes</div>
+            <div class="tablewrap" style="margin-top: 8px"><table>
+              <thead><tr><th class="l">Your last fragment goes on</th><th>One fragment is worth</th></tr></thead>
+              <tbody>
+                <tr><td class="l">Gear +4 or lower</td><td>1.6 motes</td></tr>
+                <tr><td class="l">Spells</td><td>2.0</td></tr>
+                <tr><td class="l">Gear +6 → +7</td><td>2.29</td></tr>
+                <tr><td class="l">Gear +7 → +8</td><td>2.75</td></tr>
+                <tr class="unit"><td class="l">Gear +8 → +9 · recommended</td><td>3.56</td></tr>
+                <tr><td class="l">Gear +9 → +10</td><td>4.5</td></tr>
+              </tbody></table></div></div>
+          <div><div class="sub">Not sure? Keep Recommended: +9, 3.56×</div>
+            <ul>
+              <li>Take gear to +9 with motes and fragments, and save Void-Touched Potentials for +9 → +10.</li>
+              <li>A VTP adds one whole tier, and +9 → +10 is the costliest: 512 points, about 1,640 Majors' worth of Infinite motes. That's where a VTP saves the most.</li>
+              <li>With VTPs doing +9 → +10, a fragment's best place is +8 → +9, condensed to Ascendant.</li>
+              <li>Take gear higher or lower with motes? Pick that in Settings → Counting.</li>
+              <li>The setting only changes how loot counts in T5-eq: on Loot, Home, Ask and the drop banner.</li>
+            </ul></div>
+        </div></section>
+
+      <div class="group">Planning</div>
+      <section class="card" id="help-farm"><div class="h">How you play and the farm rate</div>
+        <p>Pathfinder judges a visit at the difficulties you farm (Settings → How you play) by T5-eq per hour against your usual there, and the rest as leveling, by levels per hour. Grouped play, instances you never finished and play at the level cap are always judged by T5-eq per hour. On Ask, Rank by decides what "best" means:</p>
+        <div class="tablewrap" style="margin-top: 10px">
+          <table>
+            <thead><tr><th class="l">Rank by</th><th class="l">"Best" means</th></tr></thead>
+            <tbody>
+              <tr><td class="l"><b>Levels and motes</b> (default)</td><td class="l wrap">Each level weighed against the motes you'd farm in the same time</td></tr>
+              <tr><td class="l"><b>Fastest leveling</b></td><td class="l wrap">Levels per hour, nothing else</td></tr>
+              <tr><td class="l"><b>Most motes</b></td><td class="l wrap">T5-eq per hour</td></tr>
+              <tr><td class="l"><b>Rare drops</b></td><td class="l wrap">Only drops above T5</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="sub">The farm rate</div>
+        <ul>
+          <li>What an hour at the cap is worth in motes, used to weigh levels against motes.</li>
+          <li>Taken from your own crawls at the cap since the 11-10 patch, at the difficulties you farm for motes (Settings → How you play; D3 and D4 unless you change them): your best place or your typical, once three of them have a rate.</li>
+          <li>Until then, or if you prefer, the rate you set in Settings. Without either, a default of 50 T5-eq/h. Ask and Upgrades say which one they use.</li>
+        </ul></section>
+      <section class="card"><div class="h">Your loadouts and /who</div>
+        <p>Pathfinder follows your loadout swaps within seconds, from the files the game saves for each loadout.</p>
+        <ul>
+          <li>The first time you're on a loadout, type /who once. It names the classes, race and level, and Pathfinder remembers them.</li>
+          <li>Changed a class on a loadout? /who once more: the game's files show that a class changed, not which.</li>
+          <li>Reincarnating keeps the loadout you're on and only sets the level back to 1, so it needs no /who.</li>
+          <li>Until the /who, Home asks for it, and the overlay and the fight meter say the loadout isn't known rather than compare you with another loadout's usual.</li>
+        </ul>
+        <div class="sub">Which loadout you're on never leaves this PC.</div></section>
+      <section class="card"><div class="h">Your relevels, like-for-like</div>
+        <p>History → Relevels compares the relevels you played, never trios you haven't.</p>
+        <ol>
+          <li><b>Pace:</b> each relevel's solo crawls, in levels per hour, against your other relevels in the same zone, difficulty and 5-level band, with the reincarnation penalty taken out. A little overlap is pulled toward your usual.</li>
+          <li><b>Where the hours went:</b> the stretches that took longest past your usual hours for those levels.</li>
+        </ol>
+        <p class="small">Pathfinder doesn't forecast hours for a trio. How fast one levels depends on what each class does with the other two, so a trio you haven't played can't be measured from the ones you have. Ask's hours by place come from crawls, yours and the community's.</p></section>
+      <section class="card wide" id="help-campaign"><div class="h">The campaign</div>
+        <div class="cols">
+          <ul>
+            <li>Plan → Campaign plans every reincarnation you mean to do. Click a class's or race's pips for the rank you want (up to 3); click your goal's pip again to lower it. A loadout is a race and three classes, run 1 to 3 times.</li>
+            <li>It plans the cheapest way from your ranks now: the fewest runs, then the least XP to level (a relevel needs the XP of its highest rank, so even ranks are the cheapest), then your classes first, since Completionist counts only classes. Between plans that cost the same, each trio holds up where you level and gets a carry from Plan → Class roles, best first.</li>
+            <li>It says whether your plan is the cheapest, with the arithmetic: a run earns one race rank and three class ranks, so "24 class ranks to earn" is at least 8 runs. When a plan misses a goal or has runs to spare, it offers fixes, cheapest first.</li>
+            <li>Your Must combos and anything set to Unlock now come first, at the price they show. Everything else only where it's free.</li>
+            <li>Every class and race passive tops out at 3, and Completionist goes up when every class reaches 1, 2 and 3. Every class 3/3 takes 16 runs from scratch; everything 3/3 takes 48, because each race needs three runs of its own. Those extra runs raise classes past 3, which adds XP to level and no passive.</li>
+          </ul>
+          <ul>
+            <li>Classes come in rounds: every class to 1, then to 2, then to 3, so Completionist comes as soon as it can. A class or race you rank under Classes you want first or Races you want first is earned first wherever that's free; Unlock now plays its runs back to back, at the price shown. Races still short come after, one loadout each.</li>
+            <li>A run is done when its loadout is back at the cap after its reincarnation. Until then it reads leveling, with its level: you can have several leveling at once, say to spend a crawl token on a parked loadout. One the plan doesn't have is shown, and "Rebuild the rest" plans from where you are, keeping pinned loadouts and the runs already done.</li>
+            <li>Swap… on a loadout shows the cheapest changes that keep every goal, or lets you pick a race or class yourself: each choice says what it does, runs first, then XP. The ⋯ menu sets how many times a loadout runs, moves it, or removes it.</li>
+            <li>Reincarnated while your log was off? "Mark a run done" in its loadout's ⋯ menu.</li>
+          </ul>
+        </div></section>
+      <section class="card wide"><div class="h">Reincarnation counts</div>
+        <div class="cols">
+          <ul>
+            <li>The log says "Class Reincarnation: Warrior" with no number, so Pathfinder counts the ones it sees.</li>
+            <li>Any from while your log was off are invisible to it. Set them under Plan → Roster (Set counts…).</li>
+          </ul>
+          <ul>
+            <li>A count you set is your total as of that moment. Ones the log shows afterwards add to it.</li>
+            <li>Re-reading the logs keeps your counts.</li>
+          </ul>
+        </div></section>
+
+      <div class="group">Fights and what's left out</div>
+      <section class="card"><div class="h">DPS and kill time</div>
+        <ul>
+          <li>DPS counts your melee, spells, DoTs, damage shield and your pet.</li>
+          <li>History's DPS is damage over all your time inside. Ask's damage comparison counts only the seconds you were fighting, and the fight meter can use either (Settings → Overlays → DPS counts).</li>
+          <li>A charmed pet counts as yours only while the charm holds, and only on what it was sent at or what you're fighting. Damage to yourself never counts.</li>
+          <li>Kill time is the median from your first hit on a mob to its death.</li>
+        </ul></section>
+      <section class="card callout"><div class="h">What's left out</div>
+        <ul>
+          <li><b>DDD before the patch:</b> crawls from before the 11-10 patch where Denon's Desperate Dirge did most of the damage count for nothing: not in routes, farm rates, paces, Ask or the shared numbers. DDD since the nerf counts like any other spell.</li>
+          <li><b>Bard hunts before the patch:</b> open-world hunts from before it on a bard (or unknown) trio, since damage outside instances isn't kept.</li>
+          <li><b>Planes below 46:</b> Hate, Fear and Sky open at 46, so Ask never offers them lower, and visits from before that rule are left out.</li>
+          <li><b>Idle and travel:</b> quiet time past 3 minutes inside, and gaps over 4 minutes outside (the diagram under Time).</li>
+        </ul></section>
+    </div>
+  </section>
+
+  <!-- ============================================================ Settings -->
+  <section class="page" id="page-settings" hidden>
+    <div class="h2" style="margin-bottom: 12px">Settings</div>
+    <div class="settings" id="settingsBody"></div>
+    <section class="card" id="shareCard" style="margin-top: 16px; padding: 16px 20px" aria-label="Sharing" hidden></section>
+  </section>
+</main>
+<div class="tip" id="tip" hidden></div>
+<dialog class="report" id="report" aria-labelledby="reportTitle"></dialog>
+
+<script src="js/core.js"></script>
+<script src="js/upgrade.js"></script>
+<script src="js/race.js"></script>
+<script src="js/home.js"></script>
+<script src="js/notices.js"></script>
+<script src="js/campaign.js"></script>
+<script src="js/campcombos.js"></script>
+<script src="js/campfirst.js"></script>
+<script src="js/classroles.js"></script>
+<script src="js/roster.js"></script>
+<script src="js/crawls.js"></script>
+<script src="js/loot.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/ask.js"></script>
+<script src="js/share.js"></script>
+<script src="js/help.js"></script>
+<script src="js/report.js"></script>
+<script src="js/boot.js"></script>
+</body>
+</html>

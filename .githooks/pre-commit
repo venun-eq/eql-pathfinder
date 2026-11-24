@@ -1,0 +1,37 @@
+#!/usr/bin/env sh
+# Opt-in lightweight pre-commit hook. Enable with:
+#   git config core.hooksPath .githooks
+# Runs fast checks only (privacy guard + staged Biome lint/format); full build & tests run in tools/check.ps1 and CI.
+set -e
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+# 1. Privacy guard on Windows PowerShell (keeps local paths, LAN IPs, and private.env values out of commits)
+if command -v powershell.exe >/dev/null 2>&1; then
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
+    \$ErrorActionPreference = 'Stop'
+    . '$root/tools/pipeline-common.ps1'
+    \$np = Test-NothingPrivate '$root'
+    if (\$np.Problems) {
+      Write-Error ('pre-commit: private text in tracked files:' + [Environment]::NewLine + (\$np.Problems -join [Environment]::NewLine))
+      exit 1
+    }
+  "
+fi
+
+# 2. Biome check on staged JS/TS/JSON files (when root devDependencies are installed)
+if [ -x "$root/node_modules/.bin/biome" ]; then
+  staged_js="$(git diff --cached --name-only --diff-filter=ACMR -- '*.ts' '*.js' '*.mjs' '*.json' || true)"
+  if [ -n "$staged_js" ]; then
+    # shellcheck disable=SC2086
+    "$root/node_modules/.bin/biome" check --no-errors-on-unmatched $staged_js
+  fi
+fi
+
+# 3. C# formatting & using-sort check on staged .cs files
+staged_cs="$(git diff --cached --name-only --diff-filter=ACMR -- '*.cs' || true)"
+if [ -n "$staged_cs" ] && command -v dotnet >/dev/null 2>&1; then
+  # shellcheck disable=SC2086
+  dotnet format EQLPathfinder.slnx --no-restore --verify-no-changes --include $staged_cs
+fi

@@ -1,0 +1,6 @@
+{
+  "bucket": "eql-pathfinder-updates",
+  "publicUrl": "https://updates.eqlpathfinder.com",
+  "oldPublicUrl": "https://pub-95ff954872e74bd2a68295badc6b7ef0.r2.dev",
+  "keepReleases": 5
+}

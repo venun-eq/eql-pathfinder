@@ -1,0 +1,31 @@
+{
+  "account": "venun-eq",
+  "repository": "eql-pathfinder",
+  "name": "Venun",
+  "email": "360353646+venun-eq@users.noreply.github.com",
+  "leave_out": [
+    "docs/specs/**/*.png",
+    "docs/specs/**/*.jpg",
+    "docs/specs/**/*.jpeg",
+    "docs/specs/**/*.gif",
+    "docs/specs/**/*.webp",
+    "docs/debt.md",
+    "docs/queue.md"
+  ],
+  "looked": {
+    "site/fonts/Cinzel-Bold.ttf": "1018a08a8623d9e87862286a508229ac1dff4138",
+    "site/img/ask.png": "3fd8be9f049ce2513a7e44814e872f46ee0d2989",
+    "site/img/history.png": "8851f8a67638b12cc88f9c72e4ed464101cdc4f6",
+    "site/img/home.png": "8451305791b8126fd4228a4c371dab7d43073d6f",
+    "site/img/meter.png": "c446b2c0f747102c2387b02322cc78d9ee6ffea7",
+    "site/img/overlay.png": "a65da18e616f4a6fc208d318bf0f48df58480c88",
+    "site/img/relevels.png": "c854417a118b8233861148805152a80b4b2c673d",
+    "site/public/favicon.ico": "be6b595c73021982c293b10d042f195578c390cf",
+    "site/public/og.png": "2e4696e9eee119852b805b392f9e60b21dcf0000",
+    "src/EqlPathfinder.App/Assets/Fonts/Cinzel-Bold.ttf": "1018a08a8623d9e87862286a508229ac1dff4138",
+    "src/EqlPathfinder.App/Assets/pathfinder-256.png": "6db7dae63097fa2599b7611d62f15459f95c2481",
+    "src/EqlPathfinder.App/Assets/pathfinder.ico": "be6b595c73021982c293b10d042f195578c390cf",
+    "src/EqlPathfinder.App/Assets/splash.png": "3929c7b91adff78afce89182ed123440fdd4b43f",
+    "src/EqlPathfinder.App/web/fonts/Cinzel-Bold.ttf": "1018a08a8623d9e87862286a508229ac1dff4138"
+  }
+}

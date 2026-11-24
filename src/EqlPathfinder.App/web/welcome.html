@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome to EQL Pathfinder</title>
+<style>
+  @font-face { font-family: "Cinzel"; src: url("fonts/Cinzel-Bold.ttf") format("truetype"); font-weight: 700; }
+  :root {
+    --bg: #11161c; --rail: #0d1116; --panel: #19202a; --panel2: #212a35; --inset: #161c24; --line: #29323d; --line2: #252e38;
+    --chipline: #2f3945; --text: #ece7da; --text2: #d8dde2; --soft: #c9cfd6; --muted: #a9b1ba; --faint: #8d959e;
+    --gold: #f0c860; --gold-dim: #c9a24e; --gold-bg: #2a2416; --good: #8fd18f; --amber: #d9b86a; --warn: #e8907e; --track: #252e39;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13.5px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  ::-webkit-scrollbar { width: 12px; }
+  ::-webkit-scrollbar-thumb { background: #2a333e; border-radius: 6px; border: 3px solid var(--bg); }
+  code, kbd { font-family: "Cascadia Mono", Consolas, monospace; }
+
+  .shell { display: grid; grid-template-columns: 380px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100%; }
+  .shell > * { min-height: 0; }
+
+  /* Left: the picture for each step */
+  .art { position: relative; overflow: hidden; background:
+      radial-gradient(120% 80% at 50% 42%, #1f2733 0%, #141a22 55%, #0d1116 100%); border-right: 1px solid #222a33; }
+  .art::before { content: ""; position: absolute; inset: 0; opacity: .5; background-image:
+      radial-gradient(1px 1px at 12% 18%, #f0c86055 50%, transparent 51%), radial-gradient(1px 1px at 78% 12%, #ece7da40 50%, transparent 51%),
+      radial-gradient(1px 1px at 64% 72%, #f0c86040 50%, transparent 51%), radial-gradient(1.5px 1.5px at 22% 84%, #ece7da30 50%, transparent 51%),
+      radial-gradient(1px 1px at 88% 58%, #ece7da30 50%, transparent 51%), radial-gradient(1px 1px at 36% 40%, #f0c86030 50%, transparent 51%),
+      radial-gradient(1px 1px at 52% 92%, #f0c86040 50%, transparent 51%), radial-gradient(1px 1px at 8% 60%, #ece7da30 50%, transparent 51%); }
+  .art .scene { position: absolute; inset: 0 0 56px; display: flex; align-items: center; justify-content: center; opacity: 0; transform: translateY(8px) scale(.98);
+    transition: opacity .35s ease, transform .45s ease; pointer-events: none; }
+  .art .scene.on { opacity: 1; transform: none; pointer-events: auto; }
+  .art .brand { position: absolute; left: 0; right: 0; bottom: 22px; text-align: center; font-family: "Cinzel", serif; font-weight: 700; letter-spacing: .22em;
+    font-size: 13px; color: #c9a24e; }
+  .art .brand b { color: var(--gold); font-weight: 700; }
+
+  /* Right: words, choices, and the way forward */
+  .side { display: flex; flex-direction: column; min-width: 0; height: 100%; }
+  .progress { display: flex; gap: 6px; padding: 22px 40px 0; }
+  .progress .seg { flex: 1 1 auto; min-width: 0; }
+  .progress .seg i { display: block; height: 3px; border-radius: 2px; background: var(--track); transition: background .3s; }
+  .progress .seg span { display: block; margin-top: 7px; font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .02em; }
+  .progress .seg.done i { background: var(--gold-dim); }
+  .progress .seg.now i { background: var(--gold); }
+  .progress .seg.now span { color: var(--gold); font-weight: 600; }
+  .progress .seg.done span { color: var(--muted); }
+  .content { flex: 1; overflow: auto; padding: 26px 40px 20px; }
+  /* The sent summary open: text scrolling up fades out under the progress labels instead of being cut in half. */
+  .content:has(#usageSent:not([hidden])) { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px); mask-image: linear-gradient(to bottom, transparent 0, #000 14px); }
+  .step { display: none; animation: rise .35s ease both; }
+  .step.on { display: block; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold-dim); font-weight: 700; }
+  h1 { font-size: 25px; line-height: 1.2; margin: 6px 0 0; font-weight: 650; letter-spacing: -.005em; }
+  .lead { color: var(--soft); margin: 10px 0 0; font-size: 14px; line-height: 1.55; max-width: 540px; }
+  .small { font-size: 12px; color: var(--faint); line-height: 1.5; }
+  .gold { color: var(--gold); } .good { color: var(--good); } .amber { color: var(--amber); } .warn { color: var(--warn); } .muted { color: var(--muted); }
+  .nav { display: flex; align-items: center; gap: 10px; padding: 14px 40px 18px; border-top: 1px solid var(--line2); background: #121820; }
+  .nav .grow { flex: 1; }
+  .btn { border: 1px solid var(--chipline); background: var(--panel2); color: var(--text); border-radius: 9px; padding: 8px 18px; cursor: pointer; white-space: nowrap; }
+  .btn:hover { border-color: #3a4552; }
+  .btn.primary { background: var(--gold); border-color: var(--gold); color: #141920; font-weight: 650; padding: 8px 22px; }
+  .btn.primary:hover { background: #ffd877; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn.quiet { background: none; border-color: transparent; color: var(--muted); }
+  .btn.quiet:hover { color: var(--text); }
+  .link { color: var(--gold); background: none; border: 0; padding: 0; cursor: pointer; font-size: 12.5px; }
+  .link:hover { color: #ffe08a; }
+
+  /* Welcome */
+  .features { display: grid; gap: 14px; margin-top: 20px; }
+  .feature { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 14px; align-items: center; }
+  .feature .ic { width: 36px; height: 36px; border-radius: 10px; background: var(--gold-bg); border: 1px solid #4a3d1d; display: flex; align-items: center; justify-content: center; color: var(--gold); }
+  .feature .ic svg { width: 19px; height: 19px; }
+  .feature b { display: block; font-weight: 650; }
+  .feature span { color: var(--muted); font-size: 12.5px; }
+  .privacy { display: flex; gap: 10px; align-items: center; margin-top: 16px; color: var(--faint); font-size: 12px; }
+  .privacy svg { flex: none; color: var(--good); }
+
+  /* Usage counts */
+  .usage .choice { margin-top: 16px; }
+  .usage .opt { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: start; }
+  .usage .opt .radio { width: 14px; height: 14px; margin-top: 3px; border-radius: 50%; border: 1.5px solid #5a6572; }
+  .usage .opt.sel .radio { border-color: var(--gold); box-shadow: inset 0 0 0 3px #1f2731; background: var(--gold); }
+  .usage .what { margin-top: 12px; display: grid; grid-template-columns: 1.4fr 1fr; gap: 0 18px; padding: 10px 14px; }
+  .usage .what .sublbl { margin: 2px 0 4px; }
+  .usage .what ul { margin: 0; padding: 0; display: grid; gap: 1px; }
+  .usage .what li { list-style: none; font-size: 12px; line-height: 1.4; color: var(--soft); display: flex; gap: 7px; }
+  .usage .what li::before { content: "▸"; color: var(--gold-dim); flex: none; }
+  .usage .what .never li { color: var(--muted); }
+  .usage .what .never li::before { content: "✕"; color: var(--faint); font-size: 11px; }
+  .usage .seebar { margin-top: 8px; }
+  .usage pre { margin: 6px 0 0; max-height: 150px; overflow: auto; background: var(--inset); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font: 11.5px/1.45 "Cascadia Mono", Consolas, monospace; color: var(--soft); white-space: pre-wrap; }
+  .usage pre.wait { color: var(--faint); font-family: inherit; }
+  .summ { width: 250px; border-radius: 12px; background: #141920eb; border: 1px solid #2a333e; box-shadow: 0 18px 50px #000b; padding: 12px 14px; font-size: 12px; }
+  .summ .h { display: flex; justify-content: space-between; color: var(--text); font-weight: 650; margin-bottom: 6px; }
+  .summ .h span:last-child { color: var(--muted); font-weight: 500; }
+  .summ .r { display: flex; justify-content: space-between; padding: 3px 0; border-top: 1px solid #252e38; color: var(--soft); font-variant-numeric: tabular-nums; }
+  .summ .r b { color: var(--gold); font-weight: 600; }
+  .summ .x, .summ .x b { color: #6d7680; text-decoration: line-through; }
+
+  /* Log */
+  .howto { display: grid; gap: 8px; margin-top: 18px; counter-reset: n; }
+  .howto li { list-style: none; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; align-items: center; }
+  .howto li::before { counter-increment: n; content: counter(n); width: 26px; height: 26px; border-radius: 50%; background: var(--panel2); border: 1px solid #3a4552;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--gold); }
+  .howto { padding: 0; margin-bottom: 0; }
+  .cmd { display: inline-flex; align-items: center; gap: 8px; padding: 3px 4px 3px 10px; border-radius: 8px; background: var(--rail); border: 1px solid var(--line); }
+  .cmd code { color: var(--gold); font-size: 13.5px; }
+  .cmd button { border: 1px solid var(--chipline); background: var(--panel2); border-radius: 6px; padding: 1px 9px; font-size: 11.5px; cursor: pointer; color: var(--soft); }
+  .status { margin-top: 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); padding: 12px 14px; }
+  .status .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .status .path { font-size: 11.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; min-width: 0; }
+  .status .head .link { white-space: nowrap; flex: none; }
+  .chars { display: grid; gap: 6px; margin-top: 10px; max-height: 150px; overflow: auto; }
+  .char { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--inset); cursor: pointer; }
+  .char:hover { border-color: #3a4552; }
+  .char:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .char.sel { border-color: var(--gold-dim); background: #1f2731; }
+  .char .radio { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #5a6572; }
+  .char.sel .radio { border-color: var(--gold); box-shadow: inset 0 0 0 3px #1f2731; background: var(--gold); }
+  .char .meta { font-size: 11.5px; color: var(--faint); }
+  .char.locked { cursor: default; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--chipline); color: var(--muted); white-space: nowrap; }
+  .pill.live { border-color: #3f6b3f; color: var(--good); background: #182419; }
+  .pill.quiet { border-color: #6b5a2f; color: var(--amber); background: #231e14; }
+  .pill i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pill.live i { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 #8fd18f66; } 50% { box-shadow: 0 0 0 5px #8fd18f00; } }
+  .verdict { margin-top: 10px; font-size: 12.5px; line-height: 1.5; color: var(--soft); display: flex; gap: 8px; }
+  .verdict svg { flex: none; margin-top: 2px; }
+  .watching { display: flex; align-items: center; gap: 10px; color: var(--muted); margin-top: 10px; }
+  .watching i { width: 9px; height: 9px; border-radius: 50%; background: var(--gold); animation: blink 1.4s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  /* Reincarnations */
+  .found { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--chipline); font-size: 12px; color: var(--soft); white-space: nowrap; }
+  .chip.gold { border-color: var(--gold-dim); color: var(--gold); }
+  .choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .opt { all: unset; box-sizing: border-box; cursor: pointer; padding: 11px 14px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel); }
+  .opt:hover { border-color: #3a4552; }
+  .opt:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .opt.sel { border-color: var(--gold); background: #1f2731; }
+  .opt b { display: block; font-weight: 650; }
+  .opt span { font-size: 12px; color: var(--muted); }
+  .sharecode { margin-top: 14px; padding: 12px 14px; border-radius: 11px; border: 1px solid var(--gold-dim); background: var(--panel); }
+  .sharecode label { display: block; font-weight: 650; font-size: 13px; }
+  .sharecode label span { font-weight: 400; color: var(--muted); }
+  .sharecode input { margin-top: 8px; width: 140px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--rail); color: var(--text);
+    font: inherit; text-transform: uppercase; letter-spacing: 1px; }
+  .sharecode input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .grid8 { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .tap { position: relative; }
+  .tap > button.add { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: block; text-align: center; border-radius: 9px; border: 1px dashed #3a4552;
+    background: transparent; padding: 7px 4px 6px; color: var(--muted); }
+  .tap > button.add:hover { border-color: var(--gold-dim); color: var(--text); }
+  .tap > button.add:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .tap.has > button.add { border-style: solid; border-color: var(--gold-dim); background: var(--gold-bg); color: var(--gold); }
+  .tap .nm { display: block; font-weight: 700; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .grid4 .tap > button.add { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 6px 10px; text-align: left; }
+  .grid4 .tap .nm { font-weight: 600; font-size: 12px; }
+  .grid4 .tap .ct { margin: 0; min-height: 0; flex: none; }
+  .tap .ct { display: block; font-size: 11px; margin-top: 1px; min-height: 16px; }
+  .tap .minus { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 1px solid #3a4552; background: var(--panel2); color: var(--soft);
+    font-size: 13px; line-height: 16px; padding: 0; cursor: pointer; display: none; }
+  .tap.has .minus { display: block; }
+  .tap .minus:hover { border-color: var(--warn); color: var(--warn); }
+  .tap.entered > button.add::after { content: ""; position: absolute; left: 6px; top: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--gold); }
+  .bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; margin-top: 8px; }
+  .bar > i { display: block; height: 100%; border-radius: 3px; background: var(--gold); transition: width .3s; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .sublbl { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 650; margin: 14px 0 6px; }
+
+  /* Overlay */
+  .sizes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+  .sizes .opt { display: flex; flex-direction: column; gap: 8px; }
+  .thumb { height: 52px; border-radius: 7px; background: #0b0f14; border: 1px solid #222a33; padding: 7px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .thumb i { display: block; height: 4px; border-radius: 2px; background: #3a4552; }
+  .thumb i.g { background: #8fd18fcc; } .thumb i.a { background: var(--amber); }
+  .legendrow { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; font-size: 12.5px; color: var(--soft); }
+  .legendrow span { display: inline-flex; align-items: center; gap: 8px; }
+  .legendrow i { display: inline-block; width: 22px; height: 6px; border-radius: 3px; }
+  .tips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; margin-top: 16px; }
+  .tips div { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; color: var(--muted); }
+  .tips svg { flex: none; color: var(--gold-dim); margin-top: 1px; }
+  .tips b { color: var(--text2); font-weight: 600; }
+
+  /* Goal */
+  .goals { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .goals .opt { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; }
+  .goals .gi { width: 34px; height: 34px; border-radius: 9px; background: var(--inset); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--muted); }
+  .goals .opt.sel .gi { background: var(--gold-bg); border-color: #4a3d1d; color: var(--gold); }
+  .goals .gi svg { width: 19px; height: 19px; }
+
+  /* Ready */
+  .checks { margin-top: 16px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); padding: 2px 14px; }
+  .checks div { display: grid; grid-template-columns: 22px 110px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--line2); }
+  .checks div:first-child { border-top: 0; }
+  .checks .k { color: var(--muted); font-size: 12.5px; }
+  .checks .ok { color: var(--good); font-weight: 700; }
+  .checks .no { color: var(--amber); font-weight: 700; }
+  .next3 { display: grid; gap: 7px; margin-top: 16px; padding: 0; }
+  .next3 li { list-style: none; display: flex; gap: 10px; color: var(--soft); font-size: 13px; }
+  .next3 a { color: var(--gold); text-decoration: none; }
+  .next3 li::before { content: "▸"; color: var(--gold); }
+
+  /* Pictures */
+  .chatwin { width: 286px; border-radius: 10px; overflow: hidden; border: 1px solid #3a3326; background: #0b0e12e6; box-shadow: 0 18px 50px #000a; font-size: 12px; }
+  .chatwin .t { padding: 5px 10px; background: linear-gradient(#2b2418, #1d1912); color: #d9c48f; font-size: 11px; letter-spacing: .04em; border-bottom: 1px solid #3a3326; }
+  .chatwin .ls { padding: 8px 10px 6px; display: grid; gap: 3px; }
+  .chatwin .ls div { color: #c9cfd6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chatwin .ls .d { color: #7d8894; }
+  .chatwin .ls .y { color: #e8d48a; }
+  .chatwin .in { margin: 4px 8px 8px; padding: 5px 8px; border-radius: 5px; background: #000; border: 1px solid #2f3945; color: var(--gold); font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; display: flex; }
+  .chatwin .in .typed { display: inline-block; overflow: hidden; white-space: pre; width: 7ch; animation: type 3.6s steps(8) infinite; }
+  .chatwin .in .caret { display: inline-block; width: 7px; height: 15px; background: var(--gold); margin-left: 1px; animation: blink 1s steps(1) infinite; }
+  @keyframes type { 0% { width: 0; } 45%, 100% { width: 7ch; } }
+  .flow { width: 2px; height: 34px; margin: 6px auto; background: repeating-linear-gradient(var(--gold-dim) 0 4px, transparent 4px 9px); animation: flow 1s linear infinite; background-size: 2px 9px; }
+  @keyframes flow { to { background-position: 0 9px; } }
+  .file { width: 230px; margin: 0 auto; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--panel); box-shadow: 0 12px 30px #0008; }
+  .file svg { color: var(--muted); }
+  .file.live { border-color: #3f6b3f; }
+  .file.live svg { color: var(--good); }
+  .file .n { font-family: "Cascadia Mono", Consolas, monospace; font-size: 11px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file .s { font-size: 11.5px; color: var(--faint); }
+  .file.live .s { color: var(--good); }
+
+  .ov { width: 270px; border-radius: 10px; background: #141920eb; border: 1px solid #2a333e; box-shadow: 0 18px 50px #000b; padding: 9px 12px 10px; font-size: 12px; }
+  .ov .h { display: flex; justify-content: space-between; color: var(--text); font-weight: 650; }
+  .ov .h span:last-child { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .ov .r { display: grid; grid-template-columns: 62px minmax(0, 1fr) 34px; gap: 8px; align-items: center; margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .ov .r .k { color: var(--muted); font-size: 11.5px; }
+  .ov .r .v { text-align: right; color: var(--text); font-weight: 600; }
+  .ov .m { position: relative; height: 7px; border-radius: 4px; background: #252e39; }
+  .ov .m i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+  .ov .m b { position: absolute; top: -3px; width: 2px; height: 13px; border-radius: 1px; background: #ece7da; left: 80%; }
+  .ov .why { margin-top: 8px; color: var(--muted); font-size: 11.5px; }
+  .ov .f { margin-top: 8px; padding-top: 7px; border-top: 1px solid #252e38; display: flex; justify-content: space-between; color: var(--faint); font-size: 11.5px; }
+  .ov .lvl { height: 3px; border-radius: 2px; background: #252e39; margin-top: 5px; }
+  .ov .lvl i { display: block; height: 100%; width: 62%; border-radius: 2px; background: var(--gold); }
+  .ov .sess { margin-top: 8px; padding-top: 7px; border-top: 1px solid #252e38; color: var(--muted); font-size: 11.5px; display: grid; gap: 2px; }
+  .ov .sess div { display: flex; justify-content: space-between; }
+  .scene-game { position: absolute; inset: 0; background: radial-gradient(80% 60% at 70% 80%, #2a2016 0%, transparent 70%), radial-gradient(60% 50% at 20% 30%, #16212b 0%, transparent 70%); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .chatwin .in .typed { width: 7ch; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="art" aria-hidden="true">
+    <div class="scene" data-art="welcome"></div>
+    <div class="scene" data-art="usage"><div class="summ"><div class="h"><span>Today's summary</span><span>a sample</span></div>
+      <div class="r"><span>Home opened</span><b>4</b></div>
+      <div class="r"><span>Ask questions</span><b>2</b></div>
+      <div class="r"><span>Setup steps</span><b>3</b></div>
+      <div class="r"><span>Minutes, game on</span><b>96</b></div>
+      <div class="r x"><span>Character name</span><b>never</b></div>
+      <div class="r x"><span>Chat, log lines</span><b>never</b></div>
+      <div class="r x"><span>Time of day</span><b>never</b></div></div></div>
+    <div class="scene" data-art="log"></div>
+    <div class="scene" data-art="reinc"></div>
+    <div class="scene" data-art="overlay"></div>
+    <div class="scene" data-art="share"></div>
+    <div class="scene" data-art="ready"></div>
+    <div class="brand"><b>EQL</b> &nbsp;PATHFINDER</div>
+  </aside>
+
+  <div class="side">
+    <nav class="progress" id="progress" aria-label="Steps"></nav>
+    <main class="content" id="content">
+
+      <!-- ======================================================== Welcome -->
+      <section class="step" data-step="welcome" aria-labelledby="h-welcome">
+        <div class="eyebrow">Welcome</div>
+        <h1 id="h-welcome">Your crawls, measured.<br>Your next move, suggested.</h1>
+        <p class="lead">Pathfinder reads your EverQuest Legends log while you play and turns it into answers.</p>
+        <div class="features">
+          <div class="feature"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h11M4 12h16M4 17h7"/><path d="M15 4v6M20 9v6M11 14v6" stroke-width="2.2"/></svg></div>
+            <div><b>A live overlay</b><span>This crawl against your usual: levels and motes per hour, and time to the next level.</span></div></div>
+          <div class="feature"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6.5a3 3 0 0 0 0-6h-5a3 3 0 0 1 0-6H16"/></svg></div>
+            <div><b>Where to go next</b><span>The best zone for your level, from your own crawls.</span></div></div>
+          <div class="feature"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4.5h-4.5"/><path d="M12 8v4l2.5 2"/></svg></div>
+            <div><b>Reincarnation planning</b><span>What each class and race has done, and the best next trio for you.</span></div></div>
+          <div class="feature"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7 4h10l4 5.5L12 20 3 9.5z"/><path d="M3 9.5h18M9.5 4L12 9.5 14.5 4"/></svg></div>
+            <div><b>Every mote counted</b><span>In T5-equivalent, with drops above T5 called out as they land.</span></div></div>
+        </div>
+        <div class="privacy"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+          It only reads your log file. It never touches the game or its memory, and your play stays on this PC unless you choose to share it.</div>
+      </section>
+
+      <!-- ======================================================== Usage counts -->
+      <section class="step usage" data-step="usage" aria-labelledby="h-usage">
+        <div class="eyebrow">Usage counts</div>
+        <h1 id="h-usage">Send anonymous usage counts?</h1>
+        <p class="lead">Once a day, a short summary of how Pathfinder ran: pages opened, minutes, errors. It shows what to fix first. Nothing is sent unless you say yes.</p>
+        <div class="choice" role="radiogroup" aria-label="Usage counts">
+          <button class="opt" type="button" role="radio" aria-checked="false" data-usage="yes"><span class="radio"></span>
+            <span><b>Yes, send them</b><span>Turn it off any time in Settings, and what was sent is deleted.</span></span></button>
+          <button class="opt" type="button" role="radio" aria-checked="false" data-usage="no"><span class="radio"></span>
+            <span><b>No, don't send</b><span id="usageNoLine"></span></span></button>
+        </div>
+        <div class="card what">
+          <div><div class="sublbl">In the summary</div><ul>
+            <li>Its own random id, not your sharing key</li>
+            <li>The date, Pathfinder and Windows versions, and the day this copy first counted</li>
+            <li>Pages opened, Ask questions, features used, notices answered</li>
+            <li>Setup steps, starts and updates</li>
+            <li>Settings: sharing, beta, overlays, start window, goal, self-update</li>
+            <li>Minutes run, with and without the game</li>
+            <li>How long your log took to read, and its size</li>
+            <li>Errors: their kind and where, never the message</li></ul></div>
+          <div class="never"><div class="sublbl">Never in it</div><ul>
+            <li>Your log, or any line from it</li>
+            <li>Character, server or guild names</li>
+            <li>Chat, your kills, levels or loot, file paths</li>
+            <li>The time of day: only the date</li>
+            <li>Your IP address: not kept</li></ul>
+            <div class="seebar"><button class="link" id="seeSent" type="button" aria-expanded="false">See exactly what's sent</button></div></div>
+        </div>
+        <div id="usageSent" hidden>
+          <p class="small" style="margin: 12px 0 0">Today's summary, as it would go now:</p>
+          <p class="small" id="usageIdNote" style="margin: 2px 0 0" hidden>Its id is empty for now: it's made when setup ends, and only if you say yes.</p>
+          <pre id="usagePre" tabindex="0"></pre>
+        </div>
+      </section>
+
+      <!-- ======================================================== Log -->
+      <section class="step" data-step="log" aria-labelledby="h-log">
+        <div class="eyebrow">Your log</div>
+        <h1 id="h-log">Turn on your EverQuest log</h1>
+        <p class="lead">Everything Pathfinder knows comes from the log EverQuest writes while you play. It's off until you turn it on, and you only do that once.</p>
+        <ol class="howto">
+          <li><span>Start EverQuest Legends and enter the world.</span></li>
+          <li><span>In any chat window, type &nbsp;<span class="cmd"><code>/log on</code><button id="copyCmd" type="button">Copy</button></span></span></li>
+          <li><span>That's it. It stays on from now on, and this page notices within seconds.</span></li>
+        </ol>
+        <div class="status" id="logStatus" aria-live="polite"></div>
+      </section>
+
+      <!-- ======================================================== Reincarnations -->
+      <section class="step" data-step="reinc" aria-labelledby="h-reinc">
+        <div class="eyebrow">Reincarnations</div>
+        <h1 id="h-reinc">Anything from before your log?</h1>
+        <p class="lead">Pathfinder counts a reincarnation when your log shows it. If you reincarnated while logging was off, add those here. New ones count themselves.</p>
+        <div id="reincBody" aria-live="polite"></div>
+      </section>
+
+      <!-- ======================================================== Overlay -->
+      <section class="step" data-step="overlay" aria-labelledby="h-overlay">
+        <div class="eyebrow">While you play</div>
+        <h1 id="h-overlay">A small overlay, over the game</h1>
+        <p class="lead">It appears when EverQuest starts and hides when it closes. Each bar is this crawl; the white tick is your usual for the same zone and level.</p>
+        <div class="legendrow">
+          <span><i style="background: #8fd18fcc"></i>on pace or better</span>
+          <span><i style="background: var(--amber)"></i>a little behind</span>
+          <span><i style="background: var(--warn)"></i>well behind</span>
+        </div>
+        <div class="sizes" id="sizes" role="radiogroup" aria-label="Overlay size"></div>
+        <div class="tips">
+          <div><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M7 7l-4 5 4 5M17 7l4 5-4 5"/></svg><span><b>Drag</b> it anywhere</span></div>
+          <div><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 7v4"/></svg><span><b>Double-click</b> to switch Compact and Standard</span></div>
+          <div><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span><b>Right-click</b> for size, background and more</span></div>
+          <div><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span><b>Lock the overlays</b> so clicks pass through: double-click the compass by the clock (its Overlays menu arranges them)</span></div>
+        </div>
+      </section>
+
+      <!-- ======================================================== Share -->
+      <section class="step" data-step="share" aria-labelledby="h-share">
+        <div class="eyebrow">Better together</div>
+        <h1 id="h-share">Pathfinder gets better with friends</h1>
+        <p class="lead">Two choices, both off unless you turn them on. Change either any time in Settings.</p>
+        <div class="goals" id="choices" role="group" aria-label="Sharing and the beta"></div>
+        <div class="sharecode" id="shareCodeRow" hidden></div>
+        <p class="small" style="margin-top: 16px">Have an idea, or found something wrong? <b>Help → Send feedback</b>, and vote on what gets built next.</p>
+      </section>
+
+      <!-- ======================================================== Ready -->
+      <section class="step" data-step="ready" aria-labelledby="h-ready">
+        <div class="eyebrow" id="readyEyebrow">All set</div>
+        <h1 id="h-ready">You're ready</h1>
+        <div id="readyBody" aria-live="polite"></div>
+      </section>
+    </main>
+    <footer class="nav">
+      <span class="small" id="where"></span>
+      <span class="grow"></span>
+      <button class="btn quiet" id="back" type="button">Back</button>
+      <button class="btn primary" id="next" type="button">Next</button>
+    </footer>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const post = (type, extra) => window.chrome?.webview?.postMessage(Object.assign({ type }, extra || {}));
+const day = s => { const d = new Date(s); return isNaN(d) ? "" : d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); };
+const ago = sec => sec == null ? "never" : sec < 90 ? `${Math.round(sec)} seconds ago` : sec < 5400 ? `${Math.round(sec / 60)} minutes ago`
+  : sec < 129600 ? `${Math.round(sec / 3600)} hours ago` : `${Math.round(sec / 86400)} days ago`;
+
+const STEPS = [
+  { key: "welcome", label: "Welcome" }, { key: "usage", label: "Usage" }, { key: "log", label: "Your log" }, { key: "reinc", label: "Reincarnations" },
+  { key: "overlay", label: "Overlay" }, { key: "share", label: "Together" }, { key: "ready", label: "Ready" },
+];
+const SIZES = [
+  { key: "Compact", name: "Compact", help: "One bar and your level", rows: 1 },
+  { key: "Standard", name: "Standard", help: "Every rate, and why", rows: 3 },
+  { key: "Detailed", name: "Detailed", help: "Plus this session", rows: 5 },
+];
+const CLASS_NAMES = { WAR: "Warrior", CLR: "Cleric", PAL: "Paladin", RNG: "Ranger", SHD: "Shadow Knight", DRU: "Druid", MNK: "Monk", BRD: "Bard",
+  ROG: "Rogue", SHM: "Shaman", NEC: "Necromancer", WIZ: "Wizard", MAG: "Magician", ENC: "Enchanter", BST: "Beastlord", BER: "Berserker" };
+
+// ---------------------------------------------------------------- state
+let mode = "firstrun", flow = STEPS.map(s => s.key), at = 0;
+let settings = { overlaySize: "Compact" };
+let chars = null;
+let read = { started: false, percent: 0, done: false, error: null, character: "", roster: null, visits: 0 };
+let reincAnswer = null;
+let copied = 0;
+let usage = { selected: null, noDeletes: false };   // the app's answer (none = not asked yet); the page shows what it's told
+let usageOpen = false, usageText = null;
+
+function feed(m) {
+  switch (m.kind) {
+    case "init":
+      mode = m.mode || "firstrun";
+      flow = mode === "change" ? ["log", "reinc", "ready"] : STEPS.map(s => s.key);
+      settings = Object.assign(settings, m.settings || {});
+      if (mode === "tour") read.started = true;
+      usage = m.usage || usage;
+      at = 0;
+      break;
+    case "usage": usage = m.usage || usage; break;
+    case "usagePreview": usageText = m.text; break;
+    case "shareConfig": shareNeedsCode = !!m.requireCode; break;
+    case "chars": chars = m; break;
+    case "progress": read.started = true; read.percent = m.percent; read.character = m.character || read.character; read.done = false; read.error = null; break;
+    case "imported":
+      read.started = true;
+      if (m.ok) { read.done = true; read.error = null; read.percent = 100; read.roster = m.roster; read.visits = m.visits; read.character = m.character || read.character; }
+      else { read.error = m.error || "Couldn't read the log."; }
+      break;
+  }
+  render();
+}
+window.feed = feed;
+window.chrome?.webview?.addEventListener("message", e => feed(e.data));
+
+const stepKey = () => flow[at];
+function go(i) {
+  at = Math.max(0, Math.min(flow.length - 1, i));
+  $("#content").scrollTop = 0;
+  render();
+  post("step", { key: stepKey() });   // usage counts: how far a setup gets
+  $("#next").focus({ preventScroll: true });
+}
+window.show = key => { const i = flow.indexOf(key); if (i >= 0) go(i); };
+
+// ---------------------------------------------------------------- render
+function render() {
+  const key = stepKey();
+  $$(".step").forEach(s => s.classList.toggle("on", s.dataset.step === key));
+  $$(".scene").forEach(s => s.classList.toggle("on", s.dataset.art === key));
+  $("#progress").innerHTML = flow.map((k, i) => {
+    const st = STEPS.find(s => s.key === k);
+    return `<div class="seg ${i < at ? "done" : i === at ? "now" : ""}"${i === at ? ' aria-current="step"' : ""}><i></i><span>${esc(st.label)}</span></div>`;
+  }).join("");
+  $("#where").textContent = `Step ${at + 1} of ${flow.length}`;
+  const back = $("#back"), next = $("#next");
+  back.style.visibility = at === 0 ? "hidden" : "visible";
+  next.disabled = false;
+  next.textContent = "Next";
+  if (key === "usage") {
+    next.disabled = usage.selected == null;
+    if (next.disabled) $("#where").textContent += " · Choose Yes or No to go on";
+  }
+  if (key === "welcome") next.textContent = "Get started";
+  if (key === "log") {
+    const sel = selectedChar();
+    next.disabled = !sel;
+    next.textContent = mode === "tour" ? "Next" : sel ? `Use ${sel.name}` : "Next";
+  }
+  if (key === "ready") {
+    next.textContent = mode === "tour" ? "Done" : "Start tracking";
+    next.disabled = mode !== "tour" && !read.done;
+  }
+  renderArt(key);
+  if (key === "usage") renderUsage();
+  if (key === "log") renderLog();
+  if (key === "reinc") renderReinc();
+  if (key === "overlay") renderSizes();
+  if (key === "share") renderChoices();
+  if (key === "ready") renderReady();
+}
+
+// The Usage step: the cards show the answer the app reports; the preview is the app's own text, asked for while it's open.
+function renderUsage() {
+  $$("[data-usage]").forEach(b => {
+    const on = usage.selected === (b.dataset.usage === "yes");
+    b.classList.toggle("sel", on);
+    b.setAttribute("aria-checked", on);
+  });
+  $("#usageNoLine").textContent = usage.noDeletes ? "Stops the counts and deletes what this copy sent." : "Nothing is counted or sent. Turn it on any time in Settings.";
+  $("#seeSent").textContent = usageOpen ? "Hide what's sent" : "See exactly what's sent";
+  $("#seeSent").setAttribute("aria-expanded", usageOpen);
+  $("#usageSent").hidden = !usageOpen;
+  $("#usageIdNote").hidden = mode !== "firstrun" || usage.selected === false;
+  const pre = $("#usagePre");
+  pre.classList.toggle("wait", usageText == null);
+  pre.textContent = usageText ?? "Getting today's summary…";
+}
+
+const selectedChar = () => chars?.characters?.find(c => c.key === chars.selected) ?? null;
+const liveSec = 120;
+
+function renderLog() {
+  const box = $("#logStatus");
+  if (!chars) { box.innerHTML = `<div class="watching"><i></i>Looking for your EverQuest Legends folder…</div>`; return; }
+  const folder = `<div class="head"><span class="path" title="${esc(chars.logsDir)}">${esc(chars.logsDir || "No folder chosen")}</span>
+    ${chars.locked ? "" : `<button class="link" id="browse" type="button">Change folder…</button>`}</div>`;
+  if (!chars.dirOk) {
+    box.innerHTML = folder + `<div class="verdict">${ICON.warn}<span>Couldn't find EverQuest Legends' Logs folder. It's usually in
+      <b>C:\\Users\\Public\\Daybreak Game Company\\Installed Games\\EverQuest Legends</b>. Choose that folder (or its Logs folder).</span></div>`;
+    return;
+  }
+  if (!chars.characters.length) {
+    box.innerHTML = folder + `<div class="verdict">${ICON.info}<span>No character logs here yet. Once you type <b class="gold">/log on</b> in game,
+      your character shows up here by itself.</span></div><div class="watching"><i></i>Watching for your log…</div>`;
+    return;
+  }
+  const rows = chars.characters.map(c => {
+    const live = c.ageSeconds != null && c.ageSeconds < liveSec;
+    const quiet = !live && chars.gameRunning;
+    const pill = live ? `<span class="pill live"><i></i>logging now</span>`
+      : `<span class="pill${quiet ? " quiet" : ""}">${c.ageSeconds == null ? "no log yet" : "last written " + ago(c.ageSeconds)}</span>`;
+    const sel = c.key === chars.selected;
+    return `<button class="char${sel ? " sel" : ""}${chars.locked ? " locked" : ""}" type="button" role="radio" aria-checked="${sel}" data-char="${esc(c.key)}">
+      <span class="radio"></span><span style="min-width: 0"><b>${esc(c.name)}</b> <span class="muted">· ${esc(c.server)}</span>
+      <div class="meta">${c.mb} MB of log${c.files > 1 ? ` in ${c.files} files` : ""}</div></span>${pill}</button>`;
+  }).join("");
+  const s = selectedChar();
+  let verdict = "";
+  if (s) {
+    const live = s.ageSeconds != null && s.ageSeconds < liveSec;
+    verdict = live
+      ? `<div class="verdict">${ICON.ok}<span><b class="good">Logging is on.</b> Pathfinder will follow ${esc(s.name)}'s log as you play.</span></div>`
+      : chars.gameRunning
+        ? `<div class="verdict">${ICON.warn}<span><b class="amber">EverQuest is running, but ${esc(s.name)}'s log is quiet.</b> If you're in the world as ${esc(s.name)},
+            type <b class="gold">/log on</b>. This turns green within seconds.</span></div>`
+        : `<div class="verdict">${ICON.info}<span>Found ${esc(s.name)}'s log. When you next play, check it's on: this page and the overlay
+            say so if it isn't.</span></div>`;
+  }
+  box.innerHTML = folder + `<div class="chars" role="radiogroup" aria-label="Character">${rows}</div>` + verdict;
+}
+
+function renderReinc() {
+  const body = $("#reincBody");
+  if (read.error) { body.innerHTML = `<div class="card" style="margin-top: 16px">${ICON.warn} Couldn't read the log: ${esc(read.error)}</div>`; return; }
+  if (!read.done && mode === "tour") {
+    body.innerHTML = `<div class="card" style="margin-top: 18px"><div class="watching" style="margin: 0"><i></i>Catching up on your log… this takes a few seconds after an update.</div></div>`;
+    return;
+  }
+  if (!read.done) {
+    body.innerHTML = `<div class="card" style="margin-top: 18px"><div style="display: flex; justify-content: space-between"><span>Reading ${esc(read.character || "your")}'s log…</span>
+      <span class="muted">${Math.round(read.percent)}%</span></div><div class="bar"><i style="width: ${read.percent}%"></i></div>
+      <div class="small" style="margin-top: 8px">Pathfinder reads your whole history once (usually under a minute), then follows the log live. Keep going; you can set these on the next pass or on the Roster page.</div></div>`;
+    return;
+  }
+  const r = read.roster;
+  const logged = [...r.classes.filter(c => c.logged > 0).map(c => ({ n: c.key, k: c.logged })), ...r.races.filter(x => x.logged > 0).map(x => ({ n: x.name, k: x.logged }))];
+  const anyEntered = [...r.classes, ...r.races].some(x => x.entered != null);
+  if (reincAnswer == null && anyEntered) reincAnswer = "yes";
+  const since = r.logStart ? ` (it starts ${day(r.logStart)})` : "";
+  const nc = r.classes.filter(c => c.logged > 0).length, nr = r.races.filter(x => x.logged > 0).length;
+  // A few are worth naming; a long list is just a count.
+  const found = !logged.length
+    ? `<div class="small" style="margin-top: 16px">Your log${since} shows no reincarnations yet.</div>`
+    : logged.length <= 8
+      ? `<div class="small" style="margin-top: 16px">Your log${since} shows:</div><div class="found">${logged.map(x => `<span class="chip gold">${esc(x.n)}${x.k > 1 ? " ×" + x.k : ""}</span>`).join("")}</div>`
+      : `<div class="small" style="margin-top: 16px">Your log${since} shows <b style="color: var(--text)">${nc} of 16 classes</b> and <b style="color: var(--text)">${nr} ${nr === 1 ? "race" : "races"}</b> reincarnated.</div>`;
+  const choice = `<div class="choice" role="radiogroup" aria-label="Reincarnated with logging off?">
+      <button class="opt${reincAnswer === "no" ? " sel" : ""}" type="button" role="radio" aria-checked="${reincAnswer === "no"}" data-answer="no"><b>That's everything</b><span>${logged.length ? "My log has them all." : "I haven't reincarnated yet."}</span></button>
+      <button class="opt${reincAnswer === "yes" ? " sel" : ""}" type="button" role="radio" aria-checked="${reincAnswer === "yes"}" data-answer="yes"><b>I have more</b><span>I reincarnated while logging was off.</span></button></div>`;
+  let editor = "";
+  if (reincAnswer === "yes") {
+    const tap = (key, label, title, x) => `<div class="tap${x.rank > 0 ? " has" : ""}${x.entered != null ? " entered" : ""}">
+      <button class="add" type="button" data-count="${esc(key)}" data-to="${x.rank + 1}" title="${esc(title)}: tap to add one (now ${x.rank})" aria-label="${esc(title)}, ${x.rank} so far. Add one.">
+        <span class="nm">${esc(label)}</span><span class="ct">${x.rank > 0 ? "×" + x.rank : "&nbsp;"}</span></button>
+      <button class="minus" type="button" data-count="${esc(key)}" data-to="${Math.max(0, x.rank - 1)}" aria-label="${esc(title)}: one fewer">−</button></div>`;
+    editor = `<div class="sublbl">Classes · tap each one you reincarnated (again for a second time)</div>
+      <div class="grid8">${r.classes.map(c => tap("class:" + c.key, c.key, CLASS_NAMES[c.key] || c.name, c)).join("")}</div>
+      <div class="sublbl">Races</div>
+      <div class="grid4">${r.races.map(x => tap("race:" + x.key, x.name, x.name, x)).join("")}</div>
+      <div class="small" style="margin-top: 10px">These are your totals so far. ${anyEntered ? `<button class="link" id="useLog" type="button">Go back to just my log</button>` : ""}</div>`;
+  }
+  body.innerHTML = found + choice + editor +
+    `<div class="small" style="margin-top: 12px">You can change these any time on the Roster page.</div>`;
+}
+
+function renderSizes() {
+  $("#sizes").innerHTML = SIZES.map(s => {
+    const on = settings.overlaySize === s.key;
+    const bars = Array.from({ length: s.rows }, (_, i) => `<i class="${i === 0 ? "g" : i === 1 ? "a" : ""}" style="width: ${[86, 64, 72, 50, 58][i]}%"></i>`).join("");
+    return `<button class="opt${on ? " sel" : ""}" type="button" role="radio" aria-checked="${on}" data-size="${s.key}">
+      <div class="thumb">${bars}</div><div><b>${s.name}</b><span>${s.help}</span></div></button>`;
+  }).join("");
+}
+
+// Sharing and the beta: both off unless chosen. The beta applies at once; sharing starts as the tour ends.
+const choices = { share: false, beta: false };
+const CHOICES = {
+  share: { name: "Share your play",
+    help: "Your crawls and hunts go to a shared pool as numbers: levels, times, kills, motes, damage. No character names, no chat, no clock times. In return Ask shows how fast other players level and farm where you haven't been. See exactly what's sent, pause it or delete it all in Settings → Sharing.",
+    icon: '<circle cx="8" cy="9" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3 19c.6-3 2.6-4.5 5-4.5s4.4 1.5 5 4.5M13.5 15.2c.9-.5 1.9-.7 3-.7 2.2 0 3.8 1.4 4.3 4.5"/>' },
+  beta: { name: "Join the beta",
+    help: "New features a few days before everyone else, with the odd rough edge. Leave any time in Settings → Updates.",
+    icon: '<path d="M9 3h6M10 3v6L5 18a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3L14 9V3"/><path d="M7.5 14h9"/>' },
+};
+// While sharing is invite-only (the server says so), choosing it asks for the code a guildmate who shares made.
+let shareNeedsCode = false, shareCodeText = "";
+function renderChoices() {
+  if (settings.shareEnabled) choices.share = true;
+  if (settings.beta) choices.beta = true;
+  $("#choices").innerHTML = Object.entries(CHOICES).map(([k, c]) => {
+    const on = !!choices[k], locked = k === "share" && settings.shareEnabled;
+    const help = locked ? "You already share. Pause or delete it in Settings → Sharing."
+      : k === "share" && shareNeedsCode ? c.help + " Invite-only for now: you'll need a code from a guildmate who shares." : c.help;
+    return `<button class="opt${on ? " sel" : ""}" type="button" role="switch" aria-checked="${on}" data-choice="${k}"${locked ? " disabled" : ""}>
+      <span class="gi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${c.icon}</svg></span>
+      <span><b>${c.name}${on ? " · on" : ""}</b><span>${help}</span></span></button>`;
+  }).join("");
+  // The code box is made once and only shown or hidden, so typing in it survives every render.
+  const row = $("#shareCodeRow");
+  row.hidden = !(shareNeedsCode && choices.share && !settings.shareEnabled);
+  if (!row.hidden && !row.firstChild) {
+    row.innerHTML = `<label for="shareCode">Invite code from a guildmate who shares <span>(they make one in Settings → Sharing → Code for a friend)</span></label>
+      <input id="shareCode" type="text" spellcheck="false" autocomplete="off" placeholder="XXXX-XXXX" maxlength="9">
+      <p class="small" style="margin: 8px 0 0">No code yet? Leave it empty: Home will ask again, and Settings → Sharing takes one any time.</p>`;
+    $("#shareCode").addEventListener("input", e => { shareCodeText = e.target.value.trim(); });
+  }
+}
+
+function renderReady() {
+  const s = selectedChar();
+  const live = s && s.ageSeconds != null && s.ageSeconds < liveSec;
+  const reading = mode !== "tour" && !read.done;
+  $("#readyEyebrow").textContent = reading ? "Almost there" : "All set";
+  $("#h-ready").textContent = reading ? "Finishing your history" : mode === "tour" ? "That's the tour" : "You're ready";
+  const r = read.roster;
+  const done = r ? r.classes.filter(c => c.rank > 0).length : null, races = r ? r.races.filter(x => x.rank > 0).length : null;
+  const row = (ok, k, v) => `<div><span class="${ok ? "ok" : "no"}">${ok ? "✓" : "!"}</span><span class="k">${k}</span><span>${v}</span></div>`;
+  const prog = reading
+    ? `<div class="card" style="margin-top: 16px"><div style="display: flex; justify-content: space-between"><span>Reading ${esc(read.character || "your")}'s log…</span>
+        <span class="muted">${Math.round(read.percent)}%</span></div><div class="bar"><i style="width: ${read.percent}%"></i></div></div>` : "";
+  $("#readyBody").innerHTML = prog + `<div class="checks">
+      ${s ? row(true, "Character", `${esc(s.name)} on ${esc(s.server)}`) : ""}
+      ${s ? row(!!live || !chars?.gameRunning, "Log", live ? "on, and being written now" : chars?.gameRunning ? "quiet: type /log on in game" : "found; checked again whenever you play") : ""}
+      ${read.done ? row(true, "History", `${read.visits.toLocaleString()} zone visits${r?.logStart ? " since " + day(r.logStart) : ""}`) : ""}
+      ${r ? row(true, "Reincarnated", done || races ? `${done} of 16 classes, ${races} races` : "nothing yet") : ""}
+      ${mode !== "change" ? row(true, "Overlay", esc(settings.overlaySize)) : ""}
+    </div>
+    <div class="sublbl" style="margin-top: 18px">What happens next</div>
+    <ul class="next3">
+      <li>Zone into any crawl and the overlay starts measuring. Between crawls it suggests where to go next.</li>
+      <li>Open Pathfinder from the compass by the clock: Home, Ask, Plan, History and Upgrades.</li>
+      <li>This tour lives under Help if you want it again.</li>
+      <li><span>Questions, or want to compare notes? Join the <a href="https://eqlpathfinder.com/discord" target="_blank" rel="noopener">Discord</a>. The code is on <a href="https://eqlpathfinder.com/github" target="_blank" rel="noopener">GitHub</a>.</span></li>
+    </ul>`;
+}
+
+// ---------------------------------------------------------------- pictures
+const ICON = {
+  ok: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8fd18f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>',
+  warn: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d9b86a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>',
+  info: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a9b1ba" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
+};
+
+function compass(size, extra = "") {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 320 320" fill="none">
+    <defs>
+      <radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#f0c860" stop-opacity=".22"/><stop offset="1" stop-color="#f0c860" stop-opacity="0"/></radialGradient>
+      <linearGradient id="needle" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset=".5" stop-color="#f0c860"/><stop offset=".5" stop-color="#8a6d2c"/><stop offset="1" stop-color="#5e4a1e"/></linearGradient>
+    </defs>
+    <circle cx="160" cy="160" r="150" fill="url(#glow)"/>
+    <circle cx="160" cy="160" r="122" stroke="#f0c860" stroke-opacity=".12"/>
+    <circle cx="160" cy="160" r="96" stroke="#f0c860" stroke-opacity=".18" stroke-dasharray="2 6"/>
+    ${extra}
+    <circle cx="160" cy="160" r="60" fill="#121820" stroke="#f0c860" stroke-width="3"/>
+    ${[0, 90, 180, 270].map(a => `<path d="M160 104v10" stroke="#f0c860" stroke-width="2.5" stroke-linecap="round" transform="rotate(${a} 160 160)"/>`).join("")}
+    ${[45, 135, 225, 315].map(a => `<path d="M160 106v5" stroke="#c9a24e" stroke-width="1.6" stroke-linecap="round" transform="rotate(${a} 160 160)"/>`).join("")}
+    <g class="needle"><path d="M160 116 L170 160 L160 204 L150 160 Z" fill="url(#needle)"/><circle cx="160" cy="160" r="5" fill="#121820" stroke="#f0c860" stroke-width="2"/></g>
+  </svg>`;
+}
+
+const ROUTE = `<path class="route" d="M30 292 C 62 262, 52 230, 88 218 S 134 240, 168 236 S 236 214, 252 168 S 246 92, 292 30" stroke="#f0c860" stroke-width="2.4"
+    stroke-dasharray="1 9" stroke-linecap="round" opacity=".85"/>
+  ${[[30, 292], [88, 218], [168, 236], [252, 168]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="5" fill="#141a22" stroke="#c9a24e" stroke-width="2"/>`).join("")}
+  <path d="M292 18 l3.5 7.2 7.9 1.1-5.7 5.6 1.3 7.9-7-3.7-7 3.7 1.3-7.9-5.7-5.6 7.9-1.1z" fill="#f0c860"/>`;
+
+function renderArt(key) {
+  const el = $(`.scene[data-art="${key}"]`);
+  if (!el) return;
+  if ((key === "welcome" || key === "share") && !el.innerHTML) el.innerHTML = compass(320, ROUTE);
+  if (key === "log") {
+    const s = selectedChar();
+    const live = s && s.ageSeconds != null && s.ageSeconds < liveSec;
+    const name = s ? `eqlog_${s.name}_${(s.server || "").toLowerCase()}.txt` : "eqlog_You_server.txt";
+    el.innerHTML = `<div>
+      <div class="chatwin"><div class="t">Main Chat</div>
+        <div class="ls"><div class="d">You have entered Plane of Fear.</div><div>Grimsby tells the group, 'ready when you are'</div><div class="y">You gain party experience!</div></div>
+        <div class="in"><span class="typed">/log on</span><span class="caret"></span></div></div>
+      <div class="flow"></div>
+      <div class="file${live ? " live" : ""}"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 15h6M9 18h4"/></svg>
+        <div style="min-width: 0"><div class="n">${esc(name)}</div><div class="s">${live ? "● being written now" : s ? (chars.gameRunning ? "waiting for /log on" : "last written " + ago(s.ageSeconds)) : "waiting for your log"}</div></div></div>
+    </div>`;
+  }
+  if (key === "reinc") {
+    const r = read.roster;
+    // The trio you reincarnated most recently (or a stand-in), fanned like cards.
+    const recent = r ? [...r.classes].filter(c => c.rank > 0).sort((a, b) => (b.lastSeen || "").localeCompare(a.lastSeen || "")).slice(0, 3) : [];
+    const cards = (recent.length === 3 ? recent : [{ key: "WAR", rank: 1 }, { key: "CLR", rank: 2 }, { key: "ROG", rank: 1 }]);
+    el.innerHTML = `<svg width="320" height="320" viewBox="0 0 320 320" fill="none">
+      <defs><radialGradient id="rg" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#f0c860" stop-opacity=".16"/><stop offset="1" stop-color="#f0c860" stop-opacity="0"/></radialGradient></defs>
+      <circle cx="160" cy="165" r="150" fill="url(#rg)"/>
+      <g class="spin"><path d="M160 40 A 125 125 0 0 1 280 150" stroke="#c9a24e" stroke-width="2.5" stroke-linecap="round" opacity=".7"/>
+        <path d="M272 140 l9 12 9-14" stroke="#c9a24e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/>
+        <path d="M160 290 A 125 125 0 0 1 40 180" stroke="#c9a24e" stroke-width="2.5" stroke-linecap="round" opacity=".7"/>
+        <path d="M48 190 l-9-12 -9 14" stroke="#c9a24e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/></g>
+      ${cards.map((c, i) => {
+        const rot = (i - 1) * 14, x = 160 + (i - 1) * 44;
+        return `<g transform="rotate(${rot} ${x} 250)"><rect x="${x - 38}" y="104" width="76" height="112" rx="10" fill="${i === 1 ? "#232c38" : "#1b222c"}" stroke="${i === 1 ? "#f0c860" : "#3a4552"}" stroke-width="${i === 1 ? 2 : 1.4}"/>
+          <text x="${x}" y="168" text-anchor="middle" font-family="Cinzel, serif" font-weight="700" font-size="19" fill="${i === 1 ? "#f0c860" : "#c9cfd6"}">${esc(c.key)}</text>
+          <text x="${x}" y="196" text-anchor="middle" font-size="10" letter-spacing="3" fill="#f0c860">${"●".repeat(Math.min(3, Math.max(1, c.rank)))}</text></g>`;
+      }).join("")}
+    </svg>`;
+  }
+  if (key === "overlay") {
+    const size = settings.overlaySize;
+    const row = (k, v, w, color) => `<div class="r"><span class="k">${k}</span><span class="m"><i style="width: ${w}%; background: ${color}"></i><b></b></span><span class="v">${v}</span></div>`;
+    const lead = row("T5-eq/h", "41", 84, "#8fd18fcc");
+    el.innerHTML = `<div class="scene-game"></div><div class="ov" style="position: relative">
+      <div class="h"><span>Plane of Fear D4</span><span>12:41</span></div>
+      ${lead}
+      ${size !== "Compact" ? row("Levels/h", "2.6", 70, "#d9b86a") + row("Kills/min", "4.1", 78, "#8fd18fcc") + row("XP/kill", "0.71%", 74, "#d9b86a")
+        + `<div class="why">A little slow on motes: fewer chest drops than usual.</div>` : ""}
+      ${size === "Detailed" ? `<div class="sess"><div><span>This session</span><span>3 crawls · 2.9 Lv/h</span></div><div><span>Kedge D4</span><span>3.4 Lv/h</span></div><div><span>Plane of Fear D4</span><span>2.8 Lv/h</span></div></div>` : ""}
+      <div class="f"><span>Lv 34 · 62%</span><span>next level in 7 min</span></div><div class="lvl"><i></i></div>
+    </div>`;
+  }
+  if (key === "ready") {
+    const reading = mode !== "tour" && !read.done;
+    const p = reading ? Math.max(2, read.percent) : 100;
+    const ring = `<circle cx="160" cy="160" r="96" stroke="#252e39" stroke-width="6"/>
+      <circle cx="160" cy="160" r="96" stroke="#f0c860" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(603 * p / 100).toFixed(1)} 603"
+        transform="rotate(-90 160 160)" style="transition: stroke-dasharray .4s"/>`;
+    el.innerHTML = compass(320, ring) + (reading ? "" : `<svg width="58" height="58" viewBox="0 0 58 58" style="position: absolute; left: calc(50% + 62px); top: calc(50% - 28px - 92px)">
+      <circle cx="29" cy="29" r="26" fill="#182419" stroke="#8fd18f" stroke-width="2.5"/><path d="M18 30l7.5 7.5L41 21" stroke="#8fd18f" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`);
+  }
+}
+
+// ---------------------------------------------------------------- actions
+$("#next").addEventListener("click", () => {
+  const key = stepKey();
+  if (key === "log" && mode !== "tour") { if (!selectedChar()) return; post("import"); read.started = true; }
+  // Sharing starts once the app is tracking (it doesn't exist yet on a first run), so it's asked for as the tour ends.
+  // Invite-only sharing without a code waits for one: Home asks again (ShareIntroSeen stays false until then).
+  if (key === "ready") {
+    if (choices.share && !settings.shareEnabled && (!shareNeedsCode || shareCodeText)) post("share", { on: true, code: shareCodeText || null });
+    post("finish"); return;
+  }
+  go(at + 1);
+});
+$("#back").addEventListener("click", () => go(at - 1));
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.target.closest("button, a, input") && !$("#next").disabled) $("#next").click();
+});
+$("#copyCmd").addEventListener("click", () => {
+  post("copy", { value: "/log on" });
+  const b = $("#copyCmd");
+  b.textContent = "Copied";
+  clearTimeout(copied);
+  copied = setTimeout(() => b.textContent = "Copy", 1600);
+});
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (t.closest("#browse")) { post("browse"); return; }
+  const ch = t.closest("[data-char]");
+  if (ch && !chars?.locked) { chars.selected = ch.dataset.char; post("select", { key: ch.dataset.char }); render(); return; }
+  const u = t.closest("[data-usage]");
+  if (u) {
+    post("setting", { key: "usage", value: u.dataset.usage === "yes" });
+    if (usageOpen) { usageText = null; post("usagePreview"); renderUsage(); }
+    return;
+  }
+  if (t.closest("#seeSent")) {
+    usageOpen = !usageOpen;
+    if (usageOpen) { usageText = null; post("usagePreview"); }
+    renderUsage();
+    if (usageOpen) setTimeout(() => { $("#content").scrollTop = $("#content").scrollHeight; }, 30);
+    return;
+  }
+  const a = t.closest("[data-answer]");
+  if (a) { reincAnswer = a.dataset.answer; renderReinc(); return; }
+  const c = t.closest("[data-count]");
+  if (c && read.roster) {
+    const key = c.dataset.count, to = Number(c.dataset.to);
+    // Show it at once; Pathfinder answers with the recount.
+    const [kind, name] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
+    const row = (kind === "race" ? read.roster.races : read.roster.classes).find(x => x.key === name);
+    if (row) { row.rank = to; row.entered = to; }
+    post("counts", { value: { [key]: to } });
+    renderReinc();
+    renderArt("reinc");
+    $(`[data-count="${CSS.escape(key)}"]${c.classList.contains("minus") ? ".minus" : ".add"}`)?.focus();
+    return;
+  }
+  if (t.closest("#useLog")) { post("countsReset"); return; }
+  const sz = t.closest("[data-size]");
+  if (sz) { settings.overlaySize = sz.dataset.size; post("setting", { key: "overlaySize", value: sz.dataset.size }); renderSizes(); renderArt("overlay"); return; }
+  const pick = t.closest("[data-choice]");
+  if (pick && !pick.disabled) {
+    const k = pick.dataset.choice;
+    choices[k] = !choices[k];
+    if (k === "beta") { settings.beta = choices.beta; post("setting", { key: "beta", value: choices.beta }); }
+    renderChoices();
+    $(`[data-choice="${k}"]`)?.focus();
+    return;
+  }
+});
+
+render();
+window.chrome?.webview?.postMessage("ready");
+</script>
+</body>
+</html>

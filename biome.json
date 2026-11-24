@@ -1,0 +1,101 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "server/src/**/*.ts",
+      "server/test/**/*.ts",
+      "server/*.ts",
+      "server/*.mjs",
+      "server/package.json",
+      "server/tsconfig.json",
+      "site/build/**/*.ts",
+      "site/*.ts",
+      "site/package.json",
+      "site/tsconfig.json",
+      "tools/*.mjs",
+      "src/EqlPathfinder.App/web/js/**/*.js",
+      "package.json",
+      "biome.json"
+    ]
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "lineEnding": "auto",
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "asNeeded"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "useTemplate": "off",
+        "noNonNullAssertion": "off"
+      },
+      "complexity": {
+        "noForEach": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["server/test/**/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/EqlPathfinder.App/web/js/**/*.js"],
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedFunctionParameters": "off"
+          },
+          "complexity": {
+            "noCommaOperator": "off"
+          },
+          "suspicious": {
+            "noAssignInExpressions": "off",
+            "noGlobalIsNan": "off",
+            "noGlobalIsFinite": "off",
+            "noRedundantUseStrict": "off",
+            "useIterableCallbackReturn": "off"
+          },
+          "style": {
+            "useConst": "off"
+          }
+        }
+      }
+    }
+  ]
+}

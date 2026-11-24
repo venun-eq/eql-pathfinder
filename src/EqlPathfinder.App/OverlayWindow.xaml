@@ -1,0 +1,54 @@
+﻿<Window x:Class="EqlPathfinder.App.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:EqlPathfinder.App"
+        Title="EQL Pathfinder overlay" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize" SizeToContent="WidthAndHeight"
+        FontFamily="Segoe UI" FontSize="12.5" Foreground="#ECE7DA" UseLayoutRounding="True" SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display">
+  <StackPanel Width="296" TextElement.Foreground="#ECE7DA">
+    <!-- A drop above T5: slides in on top for 25 seconds -->
+    <Border x:Name="DropBanner" Visibility="Collapsed" CornerRadius="10" Background="#F22A2416" BorderBrush="#C9A24E" BorderThickness="1"
+            Padding="12,8" Margin="0,0,0,6">
+      <StackPanel>
+        <TextBlock x:Name="DropTitle" FontSize="13" FontWeight="Bold" Foreground="#F0C860" TextWrapping="Wrap"/>
+        <TextBlock x:Name="DropDetail" FontSize="11.5" Foreground="#E8D9A8" TextWrapping="Wrap" Margin="0,1,0,0"/>
+      </StackPanel>
+    </Border>
+
+    <Border x:Name="Root" CornerRadius="10" Background="#D10C1015" BorderBrush="#18FFFFFF" BorderThickness="1" Padding="12,9,12,10"
+            ToolTip="Drag to move · double-click for more or less · right-click for options">
+      <StackPanel>
+        <!-- Where, how long, and the verdict in a word -->
+        <DockPanel>
+          <TextBlock x:Name="HeadRight" DockPanel.Dock="Right" Margin="10,0,0,0" FontSize="12" Foreground="#A9B1BA" VerticalAlignment="Center"/>
+          <TextBlock x:Name="HeadZone" FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <!-- Meter rows: this crawl as a bar, your usual as the white tick -->
+        <StackPanel x:Name="Rows" Margin="0,4,0,0"/>
+
+        <!-- Level progress (leveling) or drops above T5 (farming) -->
+        <Border x:Name="Footer" BorderThickness="0,1,0,0" BorderBrush="#16FFFFFF" Margin="0,7,0,0" Padding="0,7,0,0">
+          <DockPanel>
+            <TextBlock x:Name="FootLeft" FontWeight="Bold" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="FootRight" DockPanel.Dock="Right" Margin="8,0,0,0" FontSize="12" Foreground="#A9B1BA" VerticalAlignment="Center"/>
+            <local:MeterBar x:Name="FootBar" Height="6" VerticalAlignment="Center"/>
+          </DockPanel>
+        </Border>
+
+        <TextBlock x:Name="Note" FontSize="11" Foreground="#8D959E" Margin="0,5,0,0" TextWrapping="Wrap"/>
+
+        <!-- Detailed size: the session, drops above T5 and the last crawls -->
+        <StackPanel x:Name="DetailedPanel" Margin="0,4,0,0">
+          <Border Height="1" Background="#16FFFFFF" Margin="0,4,0,7"/>
+          <TextBlock x:Name="SesTitle" FontSize="10.5" FontWeight="SemiBold" Foreground="#A9B1BA"/>
+          <TextBlock x:Name="SesLine" Margin="0,2,0,0" FontSize="12" TextWrapping="Wrap"/>
+          <TextBlock x:Name="HighLine" Margin="0,2,0,0" FontSize="12" Foreground="#F0C860" TextWrapping="Wrap"/>
+          <TextBlock Text="LAST CRAWLS" Margin="0,8,0,2" FontSize="10.5" FontWeight="SemiBold" Foreground="#A9B1BA"/>
+          <StackPanel x:Name="RecentRows"/>
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</Window>

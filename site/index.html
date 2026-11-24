@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- head -->
+  <title>EQL Pathfinder</title>
+  <meta name="description" content="A free Windows app that reads your EverQuest Legends log and shows the fastest way to 50 for the trio you're on, timed from your own kills.">
+  <meta property="og:title" content="EQL Pathfinder: relevel faster">
+  <meta property="og:description" content="Reads your EverQuest Legends log and shows the fastest way to 50, from your own kill speed. Live pace overlay and fight meter included.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://eqlpathfinder.com/">
+  <meta property="og:image" content="https://eqlpathfinder.com/og.png">
+</head>
+<body data-page="home">
+  <!-- header -->
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <h1>Relevel faster.</h1>
+        <p class="lede">Pathfinder reads your EverQuest Legends log and shows the fastest way to 50 for the trio you're on, timed from your own kills, not guesswork.</p>
+        <div class="cta">
+          <a class="btn" href="https://updates.eqlpathfinder.com/EQLPathfinder-win-Setup.exe">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 19h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Download for Windows
+          </a>
+          <a class="btn ghost" href="#features">See what it does</a>
+        </div>
+        <p class="meta">Free · Open source · Windows 10 and 11 · Signed installer, updates itself</p>
+        <p class="note">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 8v5M12 16.5h.01" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span>First install? Windows may say <b>Windows protected your PC</b>. Click <b>More info</b>, then <b>Run anyway</b>. <a href="#windows-warning">Why it shows</a></span>
+        </p>
+        <img class="shot" src="img/home.png" sizes="(min-width: 1120px) 1064px, (min-width: 720px) calc(100vw - 56px), calc(100vw - 32px)" width="1892" height="1116"
+          alt="Pathfinder's Home page during a relevel: WAR / CLR / RNG as a Kerran at level 43 of 50 at 20% more XP to level, 38 minutes ahead of the best relevel at D4 with about 3.6 hours to go, the route as a bar from 1 to 50 with Ask's route from here dashed, kill speed at 83% of usual, and splits against the best at each level.">
+      </div>
+    </section>
+
+    <section class="feature" id="features">
+      <div class="wrap grid">
+        <div class="text">
+          <div class="kicker">Ask</div>
+          <h2>Where should I level next?</h2>
+          <p>Pick a level range and Ask lays out the fastest route, place by place, timed from your own runs and adjusted for the extra XP each reincarnation needs.</p>
+          <p>Turn on <em>Count motes too</em> and a slower place can win when its motes are worth the time. Ask also answers:</p>
+          <ul>
+            <li>The best mote farm at your level</li>
+            <li>Which difficulty is worth it</li>
+            <li>Whether your damage is normal for the place</li>
+          </ul>
+        </div>
+        <img class="shot" src="img/ask.png" sizes="(min-width: 1120px) 593px, (min-width: 900px) calc((100vw - 104px) * 7 / 12), (min-width: 720px) calc(100vw - 56px), calc(100vw - 32px)" width="1892" height="1116" loading="lazy"
+          alt="The Ask page answering where to level from 11 to 34, fastest: about 2.3 hours from Befallen D1 through Estate of Unrest D1 and Castle of Mistmoore D0 to Kedge Keep D0, with solo, grouped and players-who-share answers side by side, and each place's time, minutes a level and T5-eq an hour.">
+      </div>
+    </section>
+
+    <section class="feature flip">
+      <div class="wrap grid">
+        <div class="text">
+          <div class="kicker">While you play</div>
+          <h2>Know if this run is on pace.</h2>
+          <p>A small overlay shows levels per hour, kill speed and XP per kill against your usual at this place and level. A tick marks your usual, and when you fall behind it says whether it's you or the place.</p>
+          <p>The fight meter splits damage by fighter, spell and mob for each pull, crawl or session, against your usual in the same place. Your pets count as you.</p>
+        </div>
+        <div>
+          <div class="pair">
+            <img src="img/overlay.png" sizes="(min-width: 1120px) 289px, (min-width: 900px) calc((100vw - 104px) * 7 / 24 - 8px), (min-width: 560px) calc(50vw - 36px), calc(100vw - 32px)" width="656" height="427" loading="lazy"
+              alt="The pace overlay in Kedge Keep D0 at level 42: on pace, with bars for levels per hour, T5-eq per hour, kill speed and XP per kill, each with a tick at the usual here from 4 runs, the two the verdict judges in green, and about 3.6 hours to 50.">
+            <img src="img/meter.png" sizes="(min-width: 1120px) 289px, (min-width: 900px) calc((100vw - 104px) * 7 / 24 - 8px), (min-width: 560px) calc(50vw - 36px), calc(100vw - 32px)" width="656" height="819" loading="lazy"
+              alt="The fight meter for a Plane of Hate D0 crawl: 477 damage per second, 99% of the usual there, split by spell, each against the usual for that place.">
+          </div>
+          <p class="caption">The overlay and the fight meter sit over the game. Drag them where you like, or hide them.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature">
+      <div class="wrap grid">
+        <div class="text">
+          <div class="kicker">Relevels</div>
+          <h2>Race your best relevel.</h2>
+          <p>Every relevel is a line on the race chart and a bar of where its hours went, with splits and kill speed. Times are put on the same footing, so a relevel at more XP per level still compares fairly.</p>
+          <p>Campaign lays out every reincarnation toward the passive ranks you want, ticking runs off as your log sees them.</p>
+        </div>
+        <img class="shot" src="img/relevels.png" sizes="(min-width: 1120px) 593px, (min-width: 900px) calc((100vw - 104px) * 7 / 12), (min-width: 720px) calc(100vw - 56px), calc(100vw - 32px)" width="1892" height="1116" loading="lazy"
+          alt="The relevel race: six relevels, the best at 7.3 hours as a line against the typical 10.9 hours, WAR / CLR / RNG in progress at level 43 after 5.9 hours and dashed to about 9.5 hours, and below it every relevel as a bar coloured by zone.">
+      </div>
+    </section>
+
+    <section class="feature flip">
+      <div class="wrap grid">
+        <div class="text">
+          <div class="kicker">History</div>
+          <h2>Every visit, measured.</h2>
+          <p>Each crawl, raid and open-world hunt with its time, levels per hour, T5-eq, kills, deaths and a verdict against your usual there: on pace or slow while you level, more or less T5-eq an hour while you farm. Loot keeps every mote and fragment by tier, with drop rates per kill and per crawl.</p>
+          <p>Upgrades works out the cheapest way to raise an item or spell with the motes and fragments you have.</p>
+        </div>
+        <img class="shot" src="img/history.png" sizes="(min-width: 1120px) 593px, (min-width: 900px) calc((100vw - 104px) * 7 / 12), (min-width: 720px) calc(100vw - 56px), calc(100vw - 32px)" width="1892" height="1116" loading="lazy"
+          alt="History's visit list: 891 visits and 260 active hours, grouped by relevel, each row with trio, zone, levels, levels per hour, a verdict such as on pace, usual T5-eq/h or 53% more T5-eq/h, and the T5-eq looted.">
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="kicker">Optional</div>
+        <h2>Better together.</h2>
+        <p class="intro">Where your own logs are thin, Ask answers from players who share: how fast they level and farm in places you haven't run, and how many players stand behind each number.</p>
+        <p class="intro">Share your play and it fills in theirs. Only numbers go: levels, times, kills, motes and damage. Never names, chat or clock times. Sharing is off until you turn it on in Settings.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="kicker">Trust</div>
+        <h2>It reads. It never touches the game.</h2>
+        <div class="cards">
+          <div class="card"><h3>Only reads</h3><p>Pathfinder reads the log the game writes when you type <code>/log on</code>, the game's spell list, and your <code>/outputfile inventory</code> export. It never changes the game, its files or its memory.</p></div>
+          <div class="card"><h3>Stays on your PC</h3><p>What it reads and works out stays on your PC unless you choose to share. Anonymous usage counts are sent only if you say yes, and you can see exactly what's sent.</p></div>
+          <div class="card"><h3>Signed and current</h3><p>The installer and the app are signed with a publisher Microsoft has verified. New versions arrive by themselves.</p></div>
+          <div class="card"><h3>Open source</h3><p>All of Pathfinder's code is on <a href="/github">GitHub</a> under the MIT license. Read what it reads and sends, or build it yourself.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="kicker">Get started</div>
+        <h2>Three steps, about five minutes.</h2>
+        <ol class="steps">
+          <li><b>Install</b>Download and run the installer. It installs for your Windows account only; no admin rights needed.</li>
+          <li><b>Turn your log on</b>In EverQuest Legends, type <code>/log on</code>. The welcome tour checks that it's working.</li>
+          <li><b>Play</b>Pathfinder reads your history once (a few minutes for a big log), then keeps up as you play.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="feature" id="windows-warning">
+      <div class="wrap grid">
+        <div class="text">
+          <div class="kicker">Installing</div>
+          <h2>Windows may warn you the first time.</h2>
+          <p>Windows can show this blue box for a new app until enough people have installed it. It's about how new Pathfinder is, not about what's in it.</p>
+          <ol class="clicks">
+            <li>Click <b>More info</b>.</li>
+            <li>Check the publisher: a name Microsoft has verified, not <b>Unknown publisher</b>. It's the developer's own name; Pathfinder is published as Venun.</li>
+            <li>Click <b>Run anyway</b>.</li>
+          </ol>
+          <p>Rather look first? Pathfinder's source is public on <a href="/github">GitHub</a>: what it reads, what it sends, and how to build it yourself.</p>
+        </div>
+        <div class="smart" role="img" aria-label="Two drawings of Windows' blue box, Windows protected your PC. In the first, a More info link is marked 1. In the second, after More info, the App line reads EQLPathfinder-win-Setup.exe and the Publisher line, marked 2, shows the developer's name; a Run anyway button is marked 3.">
+          <div class="box" aria-hidden="true">
+            <div class="t">Windows protected your PC</div>
+            <p>Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk.</p>
+            <span class="ring more">More info</span><span class="n">1</span>
+            <span class="btns"><span>Don't run</span></span>
+          </div>
+          <div class="box" aria-hidden="true">
+            <div class="t">Windows protected your PC</div>
+            <p>Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk.</p>
+            <p>App: EQLPathfinder-win-Setup.exe</p>
+            <span class="ring pub">Publisher: <i>the developer's name</i></span><span class="n">2</span>
+            <span class="btns"><span class="n">3</span><span class="ring">Run anyway</span><span>Don't run</span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section final">
+      <div class="wrap">
+        <h2>Your next relevel starts here.</h2>
+        <div class="cta">
+          <a class="btn" href="https://updates.eqlpathfinder.com/EQLPathfinder-win-Setup.exe">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 19h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Download for Windows
+          </a>
+        </div>
+        <p class="meta">Windows may warn you the first time: <a href="#windows-warning">what to click</a></p>
+        <p class="meta links"><a href="/changelog">What's new in the latest version</a><a href="/github">Source on GitHub</a><a href="/discord">Discord</a></p>
+      </div>
+    </section>
+  </main>
+
+  <!-- footer -->
+</body>
+</html>

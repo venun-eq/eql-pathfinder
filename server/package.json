@@ -1,0 +1,27 @@
+{
+  "name": "eqlpathfinder-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "cf workers types --mode test && tsc --noEmit",
+    "types": "cf workers types --mode test",
+    "deploy": "npm test && cf deploy",
+    "deploy:staging": "npm test && cf deploy --mode staging",
+    "staging:sleep": "cf workers triggers deploy --mode staging-sleep",
+    "migrate": "node migrate.mjs production",
+    "migrate:staging": "node migrate.mjs staging"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^2.0.0-rc.1",
+    "@cloudflare/vitest-plugin": "^1.8.4",
+    "cf": "^1.0.0-rc.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261117.1": true
+  }
+}

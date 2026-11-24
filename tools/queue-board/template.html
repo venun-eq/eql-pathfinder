@@ -1,0 +1,270 @@
+<title>Pathfinder Work Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* A board: one column per lane; the columns scroll sideways inside .board, so the page never does. */
+:root {
+  --bg: #f6f7f5; --panel: #ffffff; --ink: #1d2320; --muted: #5d6862; --line: #d9dfdb;
+  --accent: #1f6f5c; --accent-soft: #e2f0eb; --you: #8a5a00; --you-soft: #fbefd6;
+  --p1: #b3261e; --p2: #1f6f5c; --p3: #5b5f97; --p4: #6b7280;
+  --f-head: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121614; --panel: #1a201d; --ink: #e6ebe8; --muted: #9aa69f; --line: #2c3531;
+  --accent: #5cc3a5; --accent-soft: #183a31; --you: #f0b54a; --you-soft: #3a2c10;
+  --p1: #ff8a80; --p2: #5cc3a5; --p3: #a9adf0; --p4: #9ca3af; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121614; --panel: #1a201d; --ink: #e6ebe8; --muted: #9aa69f; --line: #2c3531;
+  --accent: #5cc3a5; --accent-soft: #183a31; --you: #f0b54a; --you-soft: #3a2c10;
+  --p1: #ff8a80; --p2: #5cc3a5; --p3: #a9adf0; --p4: #9ca3af; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+html, body { margin: 0; }
+body { overflow-x: hidden; }
+.page { padding-block: 24px 110px; display: grid; gap: 16px; min-width: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-head); text-wrap: balance; margin: 0; }
+h1 { font-size: 26px; letter-spacing: -0.01em; }
+h3 { font-size: 15px; }
+p { margin: 0; max-width: 80ch; }
+.muted { color: var(--muted); }
+.eyebrow { font: 600 11px/1 var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.banner { background: var(--you-soft); border: 1px solid var(--you); border-radius: 8px; padding: 10px 14px; display: grid; gap: 8px; }
+.banner textarea { min-height: 120px; }
+
+.board { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; min-width: 0; }
+.col { flex: 0 0 300px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: grid; grid-template-rows: auto 1fr; min-width: 0; max-height: 76vh; }
+.col.drop { border-color: var(--accent); background: var(--accent-soft); }
+.col-head { padding: 10px 12px; display: flex; gap: 8px; align-items: baseline; border-bottom: 1px solid var(--line); }
+.col-head .count { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+.cards { display: grid; gap: 8px; padding: 10px; overflow-y: auto; align-content: start; min-height: 60px; }
+.card { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; display: grid; gap: 5px; min-width: 0; }
+.card[draggable="true"] { cursor: grab; }
+.card.dragging { opacity: .4; }
+.card.touched { border-color: var(--you); box-shadow: inset 3px 0 0 var(--you); }
+.card.plain { padding: 7px 9px; font-size: 13px; }
+.name { font-family: var(--f-mono); font-size: 12.5px; font-weight: 500; overflow-wrap: anywhere; }
+.title { font-size: 13.5px; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 12px; color: var(--muted); align-items: center; }
+.chip { font: 500 11px/1.6 var(--f-mono); padding: 0 6px; border-radius: 4px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); overflow-wrap: anywhere; }
+.chip.waits { color: var(--p1); border-color: var(--p1); }
+.pill { font: 600 11px/1.7 var(--f-body); padding: 0 7px; border-radius: 10px; color: #fff; }
+.pill.P1 { background: var(--p1); } .pill.P2 { background: var(--p2); } .pill.P3 { background: var(--p3); } .pill.P4 { background: var(--p4); }
+:root:not([data-theme="light"]) .pill { color: var(--bg); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .pill { color: #fff; } }
+:root[data-theme="light"] .pill { color: #fff; }
+.you { font: 600 10.5px/1.6 var(--f-body); letter-spacing: .05em; text-transform: uppercase; color: var(--you); background: var(--you-soft); padding: 0 6px; border-radius: 4px; }
+.youtext { font-size: 12.5px; color: var(--you); background: var(--you-soft); border-radius: 6px; padding: 4px 8px; }
+.ctl { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.ctl button, .ctl select { font: 500 12px/1 var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; height: 26px; padding: 0 7px; cursor: pointer; max-width: 100%; }
+.ctl button:hover, .ctl select:hover { border-color: var(--accent); }
+.ctl button[disabled] { opacity: .35; cursor: default; }
+.ctl .sq { width: 26px; padding: 0; }
+textarea { width: 100%; box-sizing: border-box; min-height: 52px; font: 13px/1.45 var(--f-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; resize: vertical; }
+textarea:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ver { font: 600 13px/1.3 var(--f-head); }
+.empty { color: var(--muted); font-size: 13px; padding: 4px 2px; }
+@media (max-width: 760px) {
+  .board { flex-direction: column; overflow-x: visible; }
+  .col { flex: none; width: 100%; max-height: none; }
+}
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); z-index: 5;
+  padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.bar-in { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.bar button { font: 600 13.5px/1 var(--f-body); height: 36px; padding: 0 16px; border-radius: 6px; cursor: pointer; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.bar button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+.bar .status { color: var(--muted); font-size: 13px; flex: 1; min-width: 180px; }
+#copyOut { flex-basis: 100%; }
+</style>
+
+<div class="page">
+  <header style="display:grid;gap:6px">
+    <div class="eyebrow" id="eyebrow"></div>
+    <h1>Pathfinder work board</h1>
+    <p class="muted" id="summary"></p>
+    <p class="muted">Drag a card to another column or to a new place, or use the arrows and the column menu on the card. A card you move is marked <span class="you">You</span>. Save keeps your moves and notes. The repository's docs/queue.md is the source: it changes when the lead applies them.</p>
+  </header>
+  <div id="old" class="banner" hidden></div>
+  <div class="board" id="board"></div>
+</div>
+
+<div class="bar"><div class="bar-in">
+  <span class="status" id="status" aria-live="polite"></span>
+  <button id="copy" type="button">Copy as text</button>
+  <button id="save" type="button" class="primary" hidden>Save</button>
+  <textarea id="copyOut" hidden readonly aria-label="The board as text"></textarea>
+</div></div>
+
+<script>
+const DATA = /*DATA*/null/*END*/;
+const COLUMNS = [
+  { id: "progress", label: "In progress" }, { id: "now", label: "Now" }, { id: "next", label: "Next" }, { id: "later", label: "Later" },
+  { id: "waiting", label: "Needs you", only: true }, { id: "parked", label: "Parked" },
+  { id: "inbox", label: "Inbox", only: true }, { id: "dropped", label: "Dropped", only: true }
+];
+const SHOWN = COLUMNS.filter(c => !c.only || DATA.lanes[c.id].length);
+const LANE_IDS = SHOWN.map(c => c.id);
+const label = id => COLUMNS.find(c => c.id === id).label;
+const byName = {};
+for (const id of Object.keys(DATA.lanes)) for (const r of DATA.lanes[id]) byName[r.name] = r;
+const home = {};
+const state = { order: {}, touched: new Set(), notes: {} };
+for (const id of LANE_IDS) { state.order[id] = DATA.lanes[id].map(r => r.name); state.order[id].forEach(n => home[n] = id); }
+let db = null, drag = null;
+
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v; else if (k === "text") e.textContent = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat()) if (k != null) e.append(k.nodeType ? k : document.createTextNode(k));
+  return e;
+}
+const laneOf = n => LANE_IDS.find(l => state.order[l].includes(n));
+
+function card(n, lane, i, len) {
+  const r = byName[n], touched = state.touched.has(n);
+  const meta = [];
+  if (r.p) meta.push(el("span", { class: "pill " + r.p, text: r.p }));
+  if (r.tier) meta.push(el("span", { text: r.tier }));
+  r.from.forEach(f => meta.push(el("span", { class: "chip", text: "from " + f })));
+  r.waits.forEach(w => meta.push(el("span", { class: "chip waits", text: "waits for " + w })));
+  if (touched) meta.push(el("span", { class: "you", text: "You" + (home[n] !== lane ? " · was " + label(home[n]) : "") }));
+  const up = el("button", { type: "button", class: "sq", "aria-label": `Move ${n} up`, onclick: () => move(n, -1) }, "▲");
+  const down = el("button", { type: "button", class: "sq", "aria-label": `Move ${n} down`, onclick: () => move(n, 1) }, "▼");
+  up.disabled = i === 0; down.disabled = i === len - 1;
+  const sel = el("select", { "aria-label": `Column for ${n}`, onchange: e => moveTo(n, e.target.value, null) },
+    LANE_IDS.map(l => { const o = el("option", { value: l, text: label(l) }); o.selected = l === lane; return o; }));
+  const has = !!state.notes[n];
+  const ta = el("textarea", { "aria-label": `Note on ${n}`, placeholder: `Note on ${n}`, oninput: e => { state.notes[n] = e.target.value; status(); } });
+  ta.value = state.notes[n] || "";
+  const box = el("div", {}, ta); box.hidden = !has;
+  const noteBtn = el("button", { type: "button", "aria-expanded": String(has), onclick: e => { box.hidden = !box.hidden; e.target.setAttribute("aria-expanded", String(!box.hidden)); if (!box.hidden) ta.focus(); } }, has ? "Note ●" : "Note");
+  const c = el("div", { class: "card" + (touched ? " touched" : ""), id: "card-" + n, draggable: "true",
+    ondragstart: e => { drag = n; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n); c.classList.add("dragging"); },
+    ondragend: () => { drag = null; c.classList.remove("dragging"); document.querySelectorAll(".col.drop").forEach(x => x.classList.remove("drop")); } },
+    el("div", { class: "name", text: n, title: r.spec || null }),
+    r.player ? el("div", { class: "title", text: r.player }) : null,
+    el("div", { class: "meta" }, meta),
+    r.you ? el("div", { class: "youtext", text: "You: " + r.you }) : null,
+    el("div", { class: "ctl" }, up, down, sel, noteBtn), box);
+  return c;
+}
+
+function plain(title, sub) {
+  return el("div", { class: "card plain" }, sub ? el("div", { class: "ver", text: sub }) : null, el("div", { text: title }));
+}
+
+function render() {
+  const cols = SHOWN.map(col => {
+    const names = state.order[col.id];
+    const body = el("div", { class: "cards" }, names.length ? names.map((n, i) => card(n, col.id, i, names.length)) : el("div", { class: "empty", text: "Nothing here." }));
+    const c = el("div", { class: "col", "data-lane": col.id }, el("div", { class: "col-head" }, el("h3", { text: col.label }), el("span", { class: "count", text: String(names.length) })), body);
+    c.addEventListener("dragover", e => { if (!drag) return; e.preventDefault(); c.classList.add("drop"); });
+    c.addEventListener("dragleave", e => { if (!c.contains(e.relatedTarget)) c.classList.remove("drop"); });
+    c.addEventListener("drop", e => {
+      e.preventDefault(); c.classList.remove("drop"); if (!drag) return;
+      const others = [...body.querySelectorAll(".card")].filter(x => x.id !== "card-" + drag);
+      let idx = others.length;
+      for (let k = 0; k < others.length; k++) { const b = others[k].getBoundingClientRect(); if (e.clientY < b.top + b.height / 2) { idx = k; break; } }
+      moveTo(drag, col.id, idx);
+    });
+    return c;
+  });
+  const main = el("div", { class: "col", "data-lane": "onmain" }, el("div", { class: "col-head" }, el("h3", { text: "On main" }), el("span", { class: "count", text: String(DATA.onMain.length) })),
+    el("div", { class: "cards" }, DATA.onMain.length ? DATA.onMain.map(x => plain(x.title, x.name)) : el("div", { class: "empty", text: "Nothing waiting for the next release." })));
+  const ship = el("div", { class: "col", "data-lane": "shipped" }, el("div", { class: "col-head" }, el("h3", { text: "Shipped" }), el("span", { class: "count", text: String(DATA.shipped.length) })),
+    el("div", { class: "cards" }, DATA.shipped.map(v => el("div", { class: "card plain" }, el("div", { class: "ver", text: `${v.version} · ${v.date}` }), v.titles.map(t => el("div", { text: t }))))));
+  document.getElementById("board").replaceChildren(...cols, main, ship);
+  status();
+}
+
+function moveTo(n, to, idx) {
+  const from = laneOf(n), arr = state.order[from], was = arr.indexOf(n);
+  arr.splice(was, 1);
+  const dest = state.order[to], at = idx == null ? dest.length : idx;
+  dest.splice(at, 0, n);
+  if (from !== to || was !== at) state.touched.add(n);
+  render(); document.getElementById("card-" + n)?.querySelector("select")?.focus();
+}
+function move(n, d) {
+  const l = laneOf(n), i = state.order[l].indexOf(n), j = i + d;
+  if (j < 0 || j >= state.order[l].length) return;
+  moveTo(n, l, j);
+  const b = document.getElementById("card-" + n)?.querySelectorAll(".ctl button")[d < 0 ? 0 : 1];
+  if (b && !b.disabled) b.focus();
+}
+
+function summary() {
+  const out = [`Board of docs/queue.md at ${DATA.source} (${DATA.sourceDate})`];
+  for (const l of LANE_IDS) {
+    out.push("", label(l) + ":");
+    state.order[l].forEach((n, i) => {
+      const t = state.touched.has(n);
+      out.push(`  ${i + 1}. ${n}${t ? `  [you; queue.md had it ${label(home[n])} #${DATA.lanes[home[n]].findIndex(r => r.name === n) + 1}]` : ""}${state.notes[n] ? "  note: " + state.notes[n] : ""}`);
+    });
+  }
+  return out.join("\n");
+}
+function status(msg) {
+  const moved = state.touched.size, notes = Object.values(state.notes).filter(Boolean).length;
+  const base = moved || notes ? `${moved} moved, ${notes} note${notes === 1 ? "" : "s"}.` : "No changes from docs/queue.md.";
+  document.getElementById("status").textContent = msg ? `${base} ${msg}` : base;
+}
+
+document.getElementById("eyebrow").textContent = `docs/queue.md ${DATA.source}${DATA.sourceCommit && DATA.sourceCommit !== "unknown" ? " · commit " + DATA.sourceCommit : ""}${DATA.sourceDate ? " · " + DATA.sourceDate : ""}`;
+document.getElementById("summary").textContent = SHOWN.map(c => `${c.label} ${state.order[c.id].length}`).join(" · ") + ` · On main ${DATA.onMain.length} · Shipped ${DATA.shipped.length} versions`;
+
+document.getElementById("copy").addEventListener("click", async () => {
+  const text = summary(), out = document.getElementById("copyOut");
+  try { await navigator.clipboard.writeText(text); status("Copied."); }
+  catch { out.hidden = false; out.value = text; out.style.minHeight = "160px"; out.focus(); out.select(); status("Select all and copy from the box."); }
+});
+document.getElementById("save").addEventListener("click", async () => {
+  const btn = document.getElementById("save");
+  if (!db) return;
+  btn.disabled = true; status("Saving…");
+  const payload = {
+    savedAt: new Date().toISOString(), source: DATA.source,
+    lanes: Object.fromEntries(LANE_IDS.map(l => [l, state.order[l].map(n => ({ name: n, you: state.touched.has(n), note: state.notes[n] || "" }))])),
+    text: summary()
+  };
+  try { await db.doc("board/overrides").set(payload); status(`Saved at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Tell the lead.`); }
+  catch (e) { status(`Couldn't save (${e?.code || "error"}). Use Copy as text.`); }
+  finally { btn.disabled = false; }
+});
+
+function applySaved(d) {
+  if (!d || !d.lanes) return;
+  if (d.source !== DATA.source) {
+    const b = document.getElementById("old"); b.hidden = false;
+    const ta = el("textarea", { readonly: true, "aria-label": "Your old saved changes" }); ta.value = d.text || "";
+    b.replaceChildren(el("b", { text: "You saved changes against an older queue: copied below." }), ta); return;
+  }
+  const seen = new Set();
+  for (const l of LANE_IDS) state.order[l] = [];
+  for (const l of LANE_IDS) for (const r of (d.lanes[l] || [])) {
+    if (!byName[r.name] || seen.has(r.name) || !LANE_IDS.includes(home[r.name])) continue;
+    seen.add(r.name); state.order[l].push(r.name);
+    if (r.you) state.touched.add(r.name);
+    if (r.note) state.notes[r.name] = r.note;
+  }
+  for (const n of Object.keys(home)) if (!seen.has(n)) state.order[home[n]].push(n);
+  render(); status(d.savedAt ? `Last saved ${new Date(d.savedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}.` : "");
+}
+
+render();
+(async () => {
+  try {
+    db = await window.claude?.use?.("db");
+    if (!db) return;
+    document.getElementById("save").hidden = false;
+    const snap = await db.doc("board/overrides").get();
+    if (snap.exists) applySaved(snap.data());
+  } catch { /* keep the board as queue.md has it */ }
+})();
+</script>

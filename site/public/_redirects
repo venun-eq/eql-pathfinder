@@ -1,0 +1,11 @@
+# Workers static assets read this file (docs/specs/launch-links.md). The app, README and the site link to these
+# addresses, never to github.com or discord.gg, so a copy installed today never holds a dead link.
+# 302, not 301: a rename or a new invite changes only the lines here.
+
+# The repository. /github/issues and the rest of the address carry over.
+/github    https://github.com/venun-eq/eql-pathfinder    302
+/github/*  https://github.com/venun-eq/eql-pathfinder/:splat  302
+
+# The Discord server. The invite never expires (Discord's default one ends after 7 days).
+/discord   https://discord.gg/RPcqJf63pU  302
+/discord/  https://discord.gg/RPcqJf63pU  302
