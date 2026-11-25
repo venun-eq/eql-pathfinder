@@ -43,7 +43,7 @@ before code and reviews by it afterwards. docs/code-map.md says where things are
 13. **What an expansion changes is data with the day it starts.** The level cap, the token's list of crawls and any
     other game limit an expansion moves live in one list of (from this day, this value), and everything reads it by
     the day the play happened. The next expansion is then one more entry and a test, not a branch (the user, 11-20:
-    "This won't be the last expansion that raises the level cap"). Owed: kunark-cap.
+    "This won't be the last expansion that raises the level cap").
 
 ## Decisions the architect takes before code
 

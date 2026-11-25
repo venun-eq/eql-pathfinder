@@ -38,12 +38,23 @@ public static class ActiveTime
     }
 
     /// <summary>A visit's active minutes: time inside minus idle. The one place that works it out for the app.</summary>
-    public static double Minutes(Visit v, double thresholdSeconds, DateTime now) =>
-        Math.Max(0, v.CrawlSeconds(now) - v.IdleSeconds(thresholdSeconds, now)) / 60;
+    public static double Minutes(Visit v, double thresholdSeconds, DateTime now)
+    {
+        double S(DateTime t) => (t - v.Start).TotalSeconds;
+        return Minutes(v.CrawlSeconds(now), v.KillTimes.Select(S).ToList(), S(v.IdleEnd(now)),
+            v.Pauses.Select(p => (S(p.From), S(p.To))).ToList(), thresholdSeconds);
+    }
+
+    /// <summary>The same rule on seconds from the start: the time inside less idle (the community job reads a shared crawl this way).</summary>
+    public static double Minutes(double crawlSeconds, IReadOnlyList<double> kills, double end, IReadOnlyList<(double From, double To)> pauses, double thresholdSeconds) =>
+        Math.Max(0, crawlSeconds - Math.Min(IdleSeconds(kills, end, pauses, thresholdSeconds), crawlSeconds)) / 60;
 
     /// <summary>
     /// An open-world stretch's minutes: first kill to last, plus a minute for the pull (there is no time inside to measure it
     /// by, and no idle: stretches already end at a gap).
     /// </summary>
-    public static double OpenWorldMinutes(DateTime firstKill, DateTime lastKill) => (lastKill - firstKill).TotalMinutes + 1;
+    public static double OpenWorldMinutes(DateTime firstKill, DateTime lastKill) => OpenWorldMinutes(0, (lastKill - firstKill).TotalSeconds);
+
+    /// <summary>The same on seconds from any start.</summary>
+    public static double OpenWorldMinutes(double firstKill, double lastKill) => (lastKill - firstKill) / 60 + 1;
 }

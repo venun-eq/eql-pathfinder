@@ -108,6 +108,9 @@ internal sealed class SharingService : IDisposable
     public int Pending { get; private set; }
     public DateTime? LastUpload { get; private set; }
     public ShareMe? Server { get; private set; }
+    /// <summary>What the last sync's withdrawal did ("withdrew 3 of 3, held back 0"); the share self-test prints it.</summary>
+    public string? Withdrawal { get; private set; }
+    private const int WithdrawBatch = 200;
 
     /// <summary>
     /// Since when this copy's play is in the community numbers (everything: <see cref="DateTime.MinValue"/>), or null when it
@@ -292,7 +295,9 @@ internal sealed class SharingService : IDisposable
             var since = _settings.ShareFrom;
             // Trios are checked against the spells cast: build once the spell file is in, or the trios would change later.
             await Task.Run(() => svc.WaitForGameData(TimeSpan.FromSeconds(60)));
-            var payload = await svc.Query(s => s.SharePayload(version, salt, since));
+            // The payload and whether the read behind it was whole come from one Query, so a withdrawal can't follow a part-read store.
+            var read = await svc.Query(s => s.ShareRead(version, salt, since));
+            var payload = read.Payload;
             var units = await Task.Run(() => ShareUnits.From(payload));
             var ledger = ShareLedger.Load(_settings.SharePlayer);
             var sent = ledger.For(payload.Character);
@@ -309,6 +314,23 @@ internal sealed class SharingService : IDisposable
                 LastUpload = DateTime.Now;
                 Raise();
             }
+            // Every batch went up (a failure above ended this sync). What the ledger holds and the app no longer builds is deleted
+            // from the server, 200 ids a call; an id leaves the ledger once the server answers. Not behind a read that wasn't whole.
+            var gone = read.Settled ? ShareUnits.Withdrawn(sent, units) : [];
+            int dropped = 0;
+            try
+            {
+                for (int i = 0; i < gone.Count; i += WithdrawBatch)
+                {
+                    var ids = gone.Skip(i).Take(WithdrawBatch).ToList();
+                    dropped += (await client.WithdrawAsync(payload.Character, ids)).Withdrawn;
+                    foreach (var id in ids) sent.Remove(id);
+                    ledger.Save();
+                }
+            }
+            catch (ShareApiException ex) when (ex.Transient || ex.Code == "not_found") { /* an older Worker, or no answer: the ids stay, next sync */ }
+            var built = units.Select(u => u.Id).ToHashSet(StringComparer.Ordinal);
+            Withdrawal = $"withdrew {dropped} of {gone.Count}, held back {sent.Keys.Count(id => !built.Contains(id))}";
             Server = await client.MeAsync();
         }, "upload");
     }

@@ -31,12 +31,12 @@ function askQuestion(a) {
   if (a.q === "level") return `
     <div class="askq"><span>Where to level from</span>${stepper("from", r.from, "Start")}<span>to</span>${stepper("to", r.to, "End")}
       <span class="grow"></span>${seg2("ask-goal", r.goal, [["fast", "Fastest"], ["motes", "Count motes too"]], "What counts")}</div>
-    ${pres("ask-range", [["1,50", "1–50"], ["1,20", "1–20"], ["20,30", "20–30"], ["30,40", "30–40"], ["40,50", "40–50"], ["46,50", "46–50"]], v => v === `${r.from},${r.to}`)}`;
+    ${pres("ask-range", [[`1,${cap()}`, `1–${cap()}`], ["1,20", "1–20"], ["20,30", "20–30"], ["30,40", "30–40"], [`40,${newLv()?.from ?? 50}`, `40–${newLv()?.from ?? 50}`], newLv() ? [`${newLv().from},${cap()}`, `${newLv().from}–${cap()}`] : ["46,50", "46–50"]], v => v === `${r.from},${r.to}`)}`;
   if (a.q === "farm" || a.q === "dmg") return `
     <div class="askq"><span>${a.q === "farm" ? "Best mote farm at level" : "Is my damage normal at level"}</span>${stepper("at", f.at, "Level")}
       ${f.band === "50" ? "" : `<span class="ak" style="font-size: 12.5px">counts levels ${bandText(f.band)}</span>`}<span class="grow"></span>
       ${a.q === "farm" ? seg2("ask-scope", f.scope, [["patch", "Since the 11-10 patch"], ["all", "All time"]], "Which crawls") : ""}</div>
-    ${pres("ask-at", [10, 20, 30, 40, 46, 50].map(v => [String(v), String(v)]), v => v === String(f.at))}`;
+    ${pres("ask-at", [10, 20, 30, 40, ...(newLv() ? [newLv().from, cap()] : [46, 50])].map(v => [String(v), String(v)]), v => v === String(f.at))}`;
   const d = a.difficulty, z = d.pick ?? d.community;   // one zone per answer: yours, or theirs when you have none
   return `
     <div class="askq"><span>${z ? `Which difficulty is worth it in <span class="gold" style="font-weight: 650">${esc(z.zone)} at levels ${z.from}–${z.to}</span>?` : "Which difficulty is worth it?"}</span></div>
@@ -50,18 +50,20 @@ const askFilters = a => `<div class="row" style="flex-wrap: wrap; gap: 10px; mar
   </div>`;
 
 // Solo and grouped side by side, always: this is a social game, so the grouped answer shows even when it's empty.
+/** The hours cover the levels with numbers: "to 50" when only the new levels lack them, else how many of the levels. */
+const coverWords = (s, r) => { const nl = newLv(), span = r.to - r.from; return s.covered >= span ? "" : nl && s.covered >= nl.from - r.from ? ` <span class="ak">to ${r.from + s.covered}</span>` : ` <span class="ak">for ${s.covered} of ${span} levels</span>`; };
 function askCompare(a) {
   const r = a.route, span = r.to - r.from;
   const tile = (label, s, empty, on) => `<div class="dcol${on ? " win" : ""}" style="flex: 1 1 240px; min-width: 0">
       <div class="ak">${label}</div>
-      ${s ? `<div class="num" style="font-size: 20px; font-weight: 650">≈ ${fmt(s.minutes / 60)} h${s.covered < span ? ` <span class="ak">for ${s.covered} of ${span} levels</span>` : ""}</div>
+      ${s ? `<div class="num" style="font-size: 20px; font-weight: 650">≈ ${fmt(s.minutes / 60)} h${coverWords(s, r)}</div>
         <div class="ak" style="margin-top: 2px; line-height: 1.45">${esc(s.places.join(" → "))}</div>`
       : `<div class="muted" style="font-size: 12.5px; margin-top: 4px; line-height: 1.45">${empty}</div>`}
     </div>`;
   const pool = r.community;
   const poolTile = a.community || a.communityGap ? `<div class="dcol" style="flex: 1 1 240px; min-width: 0">
       <div class="ak">Players who share <span class="dim">· ${esc(poolSlice(a))}</span></div>
-      ${pool ? `<div class="num" style="font-size: 20px; font-weight: 650">≈ ${fmt(pool.minutes / 60)} h${pool.covered < span ? ` <span class="ak">for ${pool.covered} of ${span} levels</span>` : ""}</div>
+      ${pool ? `<div class="num" style="font-size: 20px; font-weight: 650">≈ ${fmt(pool.minutes / 60)} h${coverWords(pool, r)}</div>
         <div class="ak" style="margin-top: 2px; line-height: 1.45">${esc(pool.places.join(" → "))} · ${plural(Math.min(...pool.legs.map(l => l.players)), "player")}</div>`
       : `<div class="muted" style="font-size: 12.5px; margin-top: 4px; line-height: 1.45">${a.communityGap ? `Shared numbers don't cover ${esc(a.communityGap)} yet.` : "Not enough players at these levels yet."}</div>`}
     </div>` : "";
@@ -125,7 +127,9 @@ function askVersus(a) {
 }
 
 function askLevel(a) {
-  const r = a.route, span = r.to - r.from, pct = L => (L - r.from) / span * 100;
+  const r = a.route, span = r.to - r.from, pct = L => (L - r.from) / span * 100, nl = newLv();
+  if (!r.legs.length && nl && r.from >= nl.from) return `<div class="h2">${esc(noRouteHead(routeTop(r.legs)))}</div>
+    <div class="muted">${esc(noRouteSub(!!a.community, routeTop(r.legs)))}${a.community ? " Ask fills this in as players level there." : ""}</div>`;
   if (!r.legs.length) return `<div class="h2">No crawls between levels ${r.from} and ${r.to}</div>
     <div class="muted">${a.community ? "Neither your logs nor the players who share have these levels yet." : "Your logs have nothing at these levels. Once other players share, their places show here."}</div>`;
   const blended = r.legs.some(l => l.typical != null || l.mineShare < 1);
@@ -142,15 +146,16 @@ function askLevel(a) {
       (same ? "." : `; counting motes, the route changes (${fmt(r.withMotes.minutes / 60)} h, about ${Math.round(r.withMotes.t5)} T5-eq).`);
   // The hours cover only the levels someone has numbers for: say how many, and which have none, before anything else.
   const covered = span - r.gaps.length;
-  const missing = r.gaps.length ? `No numbers ${gapWords(r.gaps)}: ${a.community ? "neither your logs nor the players who share have them" : "your logs have no visit with a rate there, and other players' numbers haven't arrived yet"}, so the hours leave ${r.gaps.length === 1 ? "that level" : "those levels"} out.` : "";
+  const newOnly = nl && r.gaps.length && r.gaps.every(L => L >= nl.from);
+  const missing = newOnly ? `${noRouteHead(routeTop(r.legs))}: ${noRouteSub(!!a.community, routeTop(r.legs))}` : r.gaps.length ? `No numbers ${gapWords(r.gaps)}: ${a.community ? "neither your logs nor the players who share have them" : "your logs have no visit with a rate there, and other players' numbers haven't arrived yet"}, so the hours leave ${r.gaps.length === 1 ? "that level" : "those levels"} out.` : "";
   return `
     <div class="row" style="align-items: baseline; flex-wrap: wrap; gap: 12px"><span class="ask-big num">≈ ${fmt(r.minutes / 60)} h${infoTip("askEstimate")}</span>
-      ${r.gaps.length ? `<span class="num warn" style="font-size: 18px; font-weight: 650">for ${covered} of ${span} levels</span>` : ""}
+      ${newOnly ? `<span class="num muted" style="font-size: 18px; font-weight: 650">to ${routeTop(r.legs)}</span>` : r.gaps.length ? `<span class="num warn" style="font-size: 18px; font-weight: 650">for ${covered} of ${span} levels</span>` : ""}
       <span style="font-size: 16px; font-weight: 600">${r.legs.map(l => esc(l.place)).join(" → ")}</span></div>
-    ${missing ? `<div class="warn" style="font-size: 13px; line-height: 1.45">${esc(missing)}</div>` : ""}
+    ${missing ? `<div class="${newOnly ? "muted" : "warn"}" style="font-size: 13px; line-height: 1.45">${esc(missing)}</div>` : ""}
     <div class="muted" style="line-height: 1.5; max-width: 780px">${esc(note)}</div>
     ${r.goal === "motes" ? `<div class="ak" style="font-size: 12.5px; line-height: 1.5">${farmRateNote()}</div>` : ""}
-    ${a.rank > 0 ? `<div class="ak" style="font-size: 12.5px">Times are for the XP ${esc(a.trio || "your trio")} needs now: +${a.xpExtra}% for ${a.rank} ${a.rank === 1 ? "reincarnation" : "reincarnations"} of its most-reincarnated class.${infoTip("xp")}</div>`
+    ${a.rank > 0 ? `<div class="ak" style="font-size: 12.5px">${nl && r.to > nl.from ? (r.from >= nl.from ? `Times are for the usual XP: levels ${nl.from + 1} to ${nl.to} are new for ${esc((a.trio || "your trio").replaceAll("/", ", "))} and your race.` : `Times are for the XP ${esc(a.trio || "your trio")} needs now: +${a.xpExtra}% to level ${nl.from} for ${a.rank} ${a.rank === 1 ? "reincarnation" : "reincarnations"} of its most-reincarnated class, and its usual XP past ${nl.from}, where none has reincarnated yet.`) : `Times are for the XP ${esc(a.trio || "your trio")} needs now: +${a.xpExtra}% for ${a.rank} ${a.rank === 1 ? "reincarnation" : "reincarnations"} of its most-reincarnated class.`}${infoTip("xp")}</div>`
       : ranksUnconfirmed() ? countsNudge(data.reinc, `Times assume ${esc(a.trio || "your trio")} has never reincarnated: no extra XP to level.`, "margin: 0") : ""}
     ${askCompare(a)}
     <div class="askbar" role="img" aria-label="${esc(`Route from level ${r.from} to ${r.to}: ` + r.legs.map(l => `${l.place} ${l.from} to ${l.to}`).join(", "))}">
@@ -550,16 +555,16 @@ $("#askBody").addEventListener("click", e => {
   else if (d.gridShift) {
     remember("data-grid-shift");
     const shift = Number(d.gridShift);
-    gridStart = (gridStart ?? 1) + shift; placeLevel = Math.min(49, Math.max(1, (placeLevel ?? 1) + shift));
+    gridStart = (gridStart ?? 1) + shift; placeLevel = Math.min(cap() - 1, Math.max(1, (placeLevel ?? 1) + shift));
     renderAsk();
   }
   else if (d.askStep) {
     remember("data-ask-step");
-    if (d.askStep === "place") { placeLevel = Math.min(49, Math.max(1, (placeLevel ?? 1) + Number(d.d))); renderAsk(); return; }
+    if (d.askStep === "place") { placeLevel = Math.min(cap() - 1, Math.max(1, (placeLevel ?? 1) + Number(d.d))); renderAsk(); return; }
     const step = Number(d.d), r = a.route;
-    if (d.askStep === "from") { const from = Math.min(49, Math.max(1, r.from + step)); ask({ from, to: Math.max(r.to, from + 1) }); }
-    else if (d.askStep === "to") { const to = Math.min(50, Math.max(2, r.to + step)); ask({ to, from: Math.min(r.from, to - 1) }); }
-    else ask({ at: Math.min(50, Math.max(1, a.farm.at + step)) });
+    if (d.askStep === "from") { const from = Math.min(cap() - 1, Math.max(1, r.from + step)); ask({ from, to: Math.max(r.to, from + 1) }); }
+    else if (d.askStep === "to") { const to = Math.min(cap(), Math.max(2, r.to + step)); ask({ to, from: Math.min(r.from, to - 1) }); }
+    else ask({ at: Math.min(cap(), Math.max(1, a.farm.at + step)) });
   }
 });
 renderAsk();

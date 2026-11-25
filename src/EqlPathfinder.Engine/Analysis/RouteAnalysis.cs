@@ -102,15 +102,15 @@ public static class RouteAnalysis
     public static List<RouteOption> LevelingOptions(IEnumerable<Visit> visits, int low, int high, TrackerOptions o, DateTime? since,
         double farmRate, string? trioKey = null)
     {
-        var pool = visits.Where(v => Usable(v) && (since == null || v.Start >= since) &&
-                                     v.LevelStart is { } ls && ls >= low && ls <= high && ls < o.LevelCap && v.LevelsGained > 0 &&
+        var pool = visits.Where(v => Usable(v, o.CapOn(v)) && (since == null || v.Start >= since) &&
+                                     v.LevelStart is { } ls && ls >= low && ls <= high && ls < o.CapOn(v) && v.LevelsGained > 0 &&
                                      (trioKey == null || (v.Trio != null && ClassNames.TrioKey(v.Trio) == trioKey)));
         return Rank(Group(pool, o, leveling: true, farmRate), o.Goal, leveling: true);
     }
 
     /// <summary>Farming options at the cap, best first: T5-eq per hour, or drops above T5 when that's your goal.</summary>
     public static List<RouteOption> FarmingOptions(IEnumerable<Visit> visits, TrackerOptions o, DateTime? since) =>
-        Rank(Group(visits.Where(v => Usable(v, o.LevelCap) && (since == null || v.Start >= since) && v.LevelStart >= o.LevelCap), o, leveling: false, farmRate: 0), // farming rows carry no cost, so no rate
+        Rank(Group(visits.Where(v => Usable(v, o.CapOn(v)) && (since == null || v.Start >= since) && v.LevelStart >= o.CapOn(v)), o, leveling: false, farmRate: 0), // farming rows carry no cost, so no rate
             o.Goal, leveling: false);
 
     /// <summary>
@@ -153,7 +153,7 @@ public static class RouteAnalysis
     /// <summary>Your farming rates at the cap from the logs, since the 11-10 patch and before it.</summary>
     public static FarmRateInfo FarmRates(IEnumerable<Visit> visits, TrackerOptions o, TimeZoneInfo? zone = null)
     {
-        var atCap = visits.Where(v => Usable(v, o.LevelCap) && v.LevelStart >= o.LevelCap).ToList();
+        var atCap = visits.Where(v => Usable(v, o.CapOn(v)) && v.LevelStart >= o.CapOn(v)).ToList();
         var farmed = o.FarmDifficulties.ToHashSet();
         var farm = atCap.Where(v => v.Difficulty is { } d && farmed.Contains(d)).ToList();   // your farming, not every crawl at the cap: a quick D0 run isn't a farm
         (int n, int unrated, double? usual, double? best, string? zone, int bestN) Sum(IEnumerable<Visit> vs)

@@ -17,6 +17,13 @@ public static class Verdicts
 {
     /// <summary>One visit's segment judged against the segments at its place and (for the place check) Ask's instance visits <paramref name="instances"/>. <paramref name="community"/> gives the shared view for solo or group (true), asked only when the visit has no usual of its own.</summary>
     public static Verdict Judge(LevelingSegment run, IReadOnlyList<LevelingSegment> instances, IReadOnlyList<LevelingSegment> here, IReadOnlyCollection<int> farmed, int cap,
+        Func<bool, CommunityView?>? community = null) => Judge(run, instances, here, farmed, (_, _) => cap, community);
+
+    /// <summary>The same, each visit read against the cap of its own day.</summary>
+    public static Verdict Judge(LevelingSegment run, IReadOnlyList<LevelingSegment> instances, IReadOnlyList<LevelingSegment> here, IReadOnlyCollection<int> farmed, Tracking.TrackerOptions o,
+        Func<bool, CommunityView?>? community = null) => Judge(run, instances, here, farmed, o.CapOn, community);
+
+    private static Verdict Judge(LevelingSegment run, IReadOnlyList<LevelingSegment> instances, IReadOnlyList<LevelingSegment> here, IReadOnlyCollection<int> farmed, Func<DateTime, int?, int> cap,
         Func<bool, CommunityView?>? community = null)
     {
         string kind = VisitKinds.Of(run, farmed, cap);
@@ -33,12 +40,12 @@ public static class Verdicts
 
     /// <summary>Every closed crawl with a level judged, by visit id (History's).</summary>
     public static Dictionary<string, Verdict> JudgeAll(IEnumerable<LevelingSegment> segments, IReadOnlyList<LevelingSegment> instances,
-        IReadOnlyDictionary<string, List<LevelingSegment>> byPlace, IReadOnlyCollection<int> farmed, int cap)
+        IReadOnlyDictionary<string, List<LevelingSegment>> byPlace, IReadOnlyCollection<int> farmed, Tracking.TrackerOptions o)
     {
         var map = new Dictionary<string, Verdict>();
         foreach (var run in segments)
             if (run.VisitId != null && run.Type == "crawl" && run.LevelStart != null)
-                map[run.VisitId] = Judge(run, instances, byPlace[run.Place], farmed, cap);
+                map[run.VisitId] = Judge(run, instances, byPlace[run.Place], farmed, o);
         return map;
     }
 

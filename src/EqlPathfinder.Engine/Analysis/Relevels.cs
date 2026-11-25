@@ -21,7 +21,7 @@ public static class Relevels
     /// <see cref="Campaign.Events"/>), each loadout's level from the roster, never a guess. A journey, when there is one, is the
     /// same relevel and adds its hours and route. A journey with no reincarnation event (an older state) still counts.
     /// </summary>
-    public static List<Relevel> Of(Roster roster, IReadOnlyList<Journey> journeys, int cap)
+    public static List<Relevel> Of(Roster roster, IReadOnlyList<Journey> journeys, int cap, Func<DateTime, int>? capOn = null)
     {
         var used = new HashSet<int>();
         var rows = new List<(string Trio, string Key, string? Race, DateTime At, int Level, bool Done, int? Index, DateTime? Ev)>();
@@ -51,8 +51,8 @@ public static class Relevels
             // of its classes' levels (a reincarnation sets it to 1).
             var incs = e.Classes.Select(c => roster.Classes.GetValueOrDefault(c)).ToList();
             bool left = incs.Any(i => i != null && i.Seen.Any(t => t > e.At.AddSeconds(30)));
-            int level = left ? cap : Math.Min(cap, incs.Select(i => i?.Level ?? 1).DefaultIfEmpty(1).Min());
-            rows.Add((e.TrioKey, e.TrioKey, e.Race, e.At, level, level >= cap, null, e.At));
+            int level = left ? (capOn?.Invoke(incs.SelectMany(i => i?.Seen ?? new List<DateTime>()).Where(t => t > e.At.AddSeconds(30)).DefaultIfEmpty(e.At).Min()) ?? cap) : Math.Min(cap, incs.Select(i => i?.Level ?? 1).DefaultIfEmpty(1).Min());
+            rows.Add((e.TrioKey, e.TrioKey, e.Race, e.At, level, left || level >= cap || (incs.Count > 0 && incs.All(i => i?.ReachedCap != null)), null, e.At));
         }
         for (int i = 0; i < journeys.Count; i++)
             if (!used.Contains(i)) rows.Add((journeys[i].Trio, journeys[i].TrioKey, journeys[i].Race, journeys[i].Reincarnated, journeys[i].LevelNow, journeys[i].Done, i, null));

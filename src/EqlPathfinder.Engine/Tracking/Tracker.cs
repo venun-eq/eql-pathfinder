@@ -267,7 +267,7 @@ public sealed class Tracker
                 if (xp != null) v.PercentKills++;
                 // At the cap the bar fills but no level follows: a kill there is never an XP kill, and its percent is kept as the log
                 // says it, not as levels (xp-at-cap).
-                if (level >= Options.LevelCap) { v.CapKills++; v.CapPercent += xp?.Percent ?? 0; }
+                if (level >= Options.CapOn(s.Time, level)) { v.CapKills++; v.CapPercent += xp?.Percent ?? 0; }
                 else if (xp != null) v.KillPercent += xp.Percent;
             }
         }
@@ -307,6 +307,10 @@ public sealed class Tracker
 
     private void OnLevel(LevelGained l)
     {
+        // A ding the held slot's known level rules out: that slot isn't the one played, the swap was the last run's file.
+        if (State.PendingSwap is { } held && Slot(held.Slot).Level is { } heldLevel && (l.Level <= heldLevel || l.Level > heldLevel + 1)) State.PendingSwap = null;
+        // A ding the slot on can't make but the held slot can: the held slot is the one played, so it counts and the slot left keeps its memory.
+        else if (State.PendingSwap != null && State.Level is { } on && l.Level != on + 1 && l.Level != on) ConfirmSwap();
         var t = l.Time;
         var open = State.OpenLevelRewards;
         if (open.Count > 0)
@@ -336,6 +340,15 @@ public sealed class Tracker
         State.OpenLevelRewards = keep;
         if (State.Level is { } prev && l.Level != prev + 1 && l.Level != prev)
         {
+            // A slot's memory (its last /who) that this level contradicts is stale (reincarnated, or set up again unseen): its
+            // trio isn't this play's, so the levels wait for the next /who to name them (login-swap).
+            if (State.Loadout is { State: "known" } known)
+            {
+                if (State.Current is { TrioConfirmed: false, TrioFrom: "slot" } mem) mem.TrioFrom = null;   // not "unmet": the next /who may still name it back (TrioInference)
+                var m = Slot(known.Slot);
+                (m.Classes, m.Race, m.Level, m.Known, m.ClassesChanged, m.WhoAt) = (null, null, null, false, false, null);
+                State.Loadout = new LoadoutOn(known.Slot, "new");
+            }
             ForgetLoadout();
             // The level the crawl started at belonged to the old loadout; one already confirmed is over for levels.
             if (State.Current is { } swapped)
@@ -405,6 +418,18 @@ public sealed class Tracker
 
     private void OnWho(WhoSelf w)
     {
+        // A /who of the slot on proves nothing of the held one: only a trio its memory names, or a slot with none, confirms it.
+        if (State.PendingSwap is { } held)
+        {
+            var mem = Slot(held.Slot).Classes;
+            if (mem is not { Count: > 0 } || ClassNames.TrioKey(mem) == ClassNames.TrioKey(w.Classes)) ConfirmSwap();
+            else if (State.Classes is { Count: > 0 } on && ClassNames.TrioKey(on) == ClassNames.TrioKey(w.Classes)) State.PendingSwap = null;
+        }
+        ApplyWho(w);
+    }
+
+    private void ApplyWho(WhoSelf w)
+    {
         if (State.Current is { TrioKnown: true, LevelEnd: null } cv &&
             (State.Level is { } sl && sl != w.Level || ClassNames.TrioKey(w.Classes) != ClassNames.TrioKey(cv.Trio ?? "")))
             FreezeLevels(cv);
@@ -448,8 +473,9 @@ public sealed class Tracker
     private void Touch(Incarnation i, int level, DateTime t)
     {
         if (i.Level is not { } l || level > l) i.Level = level;
+        if (i.Peak is not { } pk || level > pk) i.Peak = level;
         i.LastActive = t;
-        if (i.Level >= Options.LevelCap) i.ReachedCap ??= t;
+        if (i.Level is { } il && il >= Options.CapOn(t, il)) i.ReachedCap ??= t;
     }
 
     /// <summary>A level change that isn't the next level means a loadout swap: the trio we knew is gone.</summary>
@@ -466,8 +492,11 @@ public sealed class Tracker
         var name = race ? r.Name : ClassNames.Abbrev(r.Name);
         var inc = race ? State.Roster.Race(name) : State.Roster.Class(name);
         inc.Seen.Add(r.Time);
+        while (inc.SeenLevels.Count < inc.Seen.Count - 1) inc.SeenLevels.Add(Options.BaseCap);
+        inc.SeenLevels.Add(Math.Max(inc.Peak ?? Options.CapOn(r.Time), Options.BaseCap));
+        inc.Peak = null;
         if (r.Rank is { } stated) { inc.LoggedRank = stated; inc.LoggedAt = r.Time; }
-        inc.Rank = Roster.Effective(inc, Options.EnteredCounts.GetValueOrDefault(Roster.Key(race, name)));
+        Roster.SetRank(inc, Options.EnteredCounts.GetValueOrDefault(Roster.Key(race, name)));
         inc.Reincarnated = r.Time;
         inc.Level = 1;
         inc.ReachedCap = null;
@@ -515,12 +544,46 @@ public sealed class Tracker
     private void AddStint(DateTime t, int slot, string? trio) => State.Stints.Add(new LoadoutStint(t, slot, trio));
 
     /// <summary>
+    /// The first swap the files show from 2 min before to 30 s after a login is held, not taken: the game writes a slot file
+    /// only on swap, zone and camp, so the newest at launch can be the slot of the run before (login-swap). A /who
+    /// or a later swap row confirms it (a zone writing another slot's file is a later swap row); a ding its slot's level rules out drops it.
+    /// </summary>
+    private void OnSwap(LoadoutSwapped sw)
+    {
+        if (State.PendingSwap is { } held)
+        {
+            if (held.Slot == sw.Slot) State.PendingSwap = null;   // the file written again: the row counts from its own time, not the held one's
+            else ConfirmSwap();
+        }
+        bool atLogin = State.LoginAt is { } la && !State.SwappedSinceLogin && sw.Time >= la.AddMinutes(-2) && sw.Time <= la.AddSeconds(30);
+        if (atLogin && State.Loadout?.Slot != sw.Slot) State.PendingSwap = sw;
+        else ApplySwap(sw);
+    }
+
+    /// <summary>The held swap counts, from its own time.</summary>
+    private void ConfirmSwap()
+    {
+        if (State.PendingSwap is not { } held) return;
+        State.PendingSwap = null;
+        ApplySwap(held);
+    }
+
+    /// <summary>The engine reads a login line: what was held for the login before is dropped.</summary>
+    public void NoteLogin(DateTime t)
+    {
+        State.LoginAt = t;
+        State.PendingSwap = null;
+        State.SwappedSinceLogin = false;
+    }
+
+    /// <summary>
     /// The game wrote the loadout file of <paramref name="sw"/>.Slot: that slot is on, with what a /who once named it, or with
     /// nothing from the loadout left when none has. A /who read before this swap but typed after it (an app start reads the
     /// log first, and the files after) names the slot.
     /// </summary>
-    private void OnSwap(LoadoutSwapped sw)
+    private void ApplySwap(LoadoutSwapped sw)
     {
+        State.SwappedSinceLogin = true;
         if (State.Loadout?.Slot == sw.Slot) return;
         if (State.Current is { Closed: false, LevelEnd: null } cur)
         {

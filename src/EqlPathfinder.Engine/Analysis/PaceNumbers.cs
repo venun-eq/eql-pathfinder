@@ -68,7 +68,7 @@ public static class Stretches
         for (int i = newestFirst.Count - 1; i >= 0; i--)
         {
             var v = newestFirst[i];
-            string key = RelevelOf(js, v) is var r and >= 0 ? "j" + r : (v.LevelStart ?? 0) >= cap ? "cap" : "lvl";
+            string key = RelevelOf(js, v) is var r and >= 0 ? "j" + r : (v.AtCap || (v.LevelStart ?? 0) >= cap) ? "cap" : "lvl";
             if (groups.Count > 0 && groups[^1].Key == key) groups[^1].At.Add(i); else groups.Add((key, [i]));
         }
         for (int id = 0; id < groups.Count; id++)
@@ -108,9 +108,9 @@ public static class Stretches
         {
             var rows = g.OrderBy(v => v.Start).ToList();
             int rel = RelevelOf(js, rows[0]);
-            string kind = rel >= 0 ? "relevel" : (rows[0].LevelStart ?? 0) >= cap ? "cap" : "lvl";
+            string kind = rel >= 0 ? "relevel" : (rows[0].AtCap || (rows[0].LevelStart ?? 0) >= cap) ? "cap" : "lvl";
             // A relevel's crawls with a rate: levels/h from the oldest to the newest, and the fit of its log against the level.
-            var crawls = rel < 0 ? [] : rows.Where(v => v.Difficulty != null && v.LevelsPerHour > 0 && (v.LevelStart ?? 0) < cap).ToList();
+            var crawls = rel < 0 ? [] : rows.Where(v => v.Difficulty != null && v.LevelsPerHour > 0 && !v.AtCap && (v.LevelStart ?? 0) < cap).ToList();
             double? old = null, neu = null;
             int? perLevel = null;
             if (crawls.Count >= 2)

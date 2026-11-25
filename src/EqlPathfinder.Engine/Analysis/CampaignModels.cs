@@ -221,7 +221,7 @@ public sealed record CampaignGain(string Kind, string Key, int Rank);
 /// </summary>
 public sealed record CampaignRun(int N, int Loadout, string Race, IReadOnlyList<string> Classes, string State,
     int RankAfter, double Xp, IReadOnlyList<CampaignGain> Gains, IReadOnlyList<string> Past,
-    int? Level = null, double? EtaHours = null, int? Crawls = null, int Round = 0, DateTime? At = null);
+    int? Level = null, double? EtaHours = null, int? Crawls = null, int Round = 0, DateTime? At = null, int? EtaTo = null);
 
 /// <summary>A goal: the rank you want, the rank now, and the rank once the plan is played.</summary>
 public sealed record CampaignGoal(string Kind, string Key, int Target, int Now, int AtEnd);

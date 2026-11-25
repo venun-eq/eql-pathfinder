@@ -90,21 +90,21 @@ The pool keeps facts, and the job works everything out from them each run, so a 
 in the pool at the next run, not only crawls whose player re-sends them. A published number never carries a choice
 that's each player's own: those are applied by the app, when it reads the file.
 
-- **Same rules as the app (11-19).** Damage a second divides by active time and is 0 for a visit with no rate (`Rates.PerSecond`). Places and difficulties rank only visits with a rate (finished, or 8 kills or more; `onlyWithRate`), here and in the app's `Without`; bands still count them, and the log line counts them as "no rate". A kill at the level cap adds no XP and isn't counted for XP per kill (it still counts as a kill).
+- **Same rules as the app (11-19).** Damage a second divides by active time and is 0 for a visit with no rate (`Rates.PerSecond`). Places and difficulties rank only visits with a rate (finished, or 8 kills or more; `onlyWithRate`), here and in the app's `Without`; bands still count them, and the log line counts them as "no rate". A kill at the level cap adds no XP and isn't counted for XP per kill (it still counts as a kill). The cap is the cap of the unit's own `Day` (`Expansions.CapOn`, the player's local day: 50 before 2026-12-08, 55 from it), so a crawl at 50 on 12-09 counts its kills' XP from the raw rows even when an older app derived 0 levels; the largest levels a unit may carry is that cap less one. Nothing is sent that is new: the job recomputes (release note `job: true`).
 - **Levels** of a crawl: its kill rows' XP plus its rewards' share. A hunt's minutes and levels: its kill rows (first
   kill to last plus a minute, as `FieldHunts` does). `CommunityBuilder.Recompute`.
 - **Active minutes** of a crawl: time inside less idle, by the app's own rule (`ActiveTime`, the 3-minute threshold),
   from the kill rows and two facts upload schema 4 added: `pauses` (out of the instance mid-visit) and `end` (where
-  active time ends), both in seconds from the start. A crawl from an app before schema 4 has neither and keeps the
-  `derived.activeMinutes` it was sent with, until that app re-sends it. A schema change re-sends every unit, so a
+  active time ends), both in seconds from the start. A crawl from an app before schema 4 has neither and is left out
+  ("from before schema 4" in the log), until that app re-sends it. A schema change re-sends every unit, so a
   sharer's whole history comes back with them within a day or so (3,000 units a day each). Since 11-17 a unit is
   re-sent only when its facts or the schema change, not its `derived` numbers or the engine version (`ShareUnits.Make`):
   updates that changed the app's math used to re-send whole histories and hit the daily limit. And the server skips a
   unit it already holds unchanged (`content_hash`, migration 0006): it's neither written nor counted against the
   limit, so a reinstall or a lost ledger costs nothing. The limit stays, as a fuse against a runaway copy.
-- `derived` is still sent and kept, only as a cross-check: `pathfinder status --db <copy> --facts-check` compares
-  it with what the job works out, for one history (11-17, on Venun's: 1,225 crawls and 86 hunts agree, but for 6
-  crawls whose kill rows hold duplicates).
+- Schema 5 (11-25) sends no `derived` for a crawl or hunt: the job reads facts only, and a hunt with no kills is left
+  out. Old apps' units still say `derived`; the job ignores it. The job's active minutes and T5-eq call the app's own
+  `ActiveTime` and `Valuation`. An app withdraws the units it no longer builds (`POST /v1/units/withdraw`).
 - **Duplicate kill rows (found and fixed 11-17):** two processes following the same log into one database wrote some
   kills twice, each pair in a row (23 rows on 11-17, all in crawls; a second live copy for a few minutes, likely a
   developer run against the real data folder). Same-second kills that look alike are real: AE pulls, with as many

@@ -109,7 +109,7 @@ public sealed record VisitStats(
             AfterMinutes = clock.After,
             OutsideMinutes = clock.Outside,
             ZonedOut = clock.ZonedOut,
-            AtCap = v.LevelStart >= o.LevelCap,
+            AtCap = v.LevelStart is { } ls0 && ls0 >= o.CapOn(v),
         };
         // Controls "Hide visits too short to judge": true when below rate threshold (except raids, judged by boss).
         return s with { TooShort = Rates.Early(v.Completed, v.Kills) && !s.Raid, Slot = v.Slot };
@@ -179,13 +179,17 @@ public sealed record SessionStats(
             Rate(t5, crawl), Rate(t5, wall), Rate(lv, crawl), Rate(lv, wall), kills, hi, finished);
     }
 
-    /// <summary>Visits ending the list that share its zone and difficulty, each starting within the gap of the previous end.</summary>
-    public static List<Visit> CurrentSession(IReadOnlyList<Visit> chronological, double gapMinutes = 30)
+    /// <summary>
+    /// Visits ending the list that share its zone and difficulty, each starting within the gap of the previous end. With
+    /// <paramref name="counts"/>, the session stops at the first visit (going back) it refuses: a farming session leaves out the relevel crawl before it.
+    /// </summary>
+    public static List<Visit> CurrentSession(IReadOnlyList<Visit> chronological, double gapMinutes = 30, Func<Visit, bool>? counts = null)
     {
         var result = new List<Visit>();
         for (int i = chronological.Count - 1; i >= 0; i--)
         {
             var v = chronological[i];
+            if (counts != null && !counts(v)) break;
             if (result.Count > 0)
             {
                 var next = result[0];

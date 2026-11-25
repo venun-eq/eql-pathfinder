@@ -41,6 +41,7 @@ public sealed record ShareRegistration(string Install, string Player, string? Sa
 public sealed record ShareUploadResult(int Accepted, int Ignored);
 public sealed record ShareMe(string Player, string Install, Dictionary<string, int> Counts, long? LastUpload, int Pcs);
 public sealed record ShareDeleted(int Deleted, int Pcs);
+public sealed record ShareWithdrawn(int Withdrawn);
 public sealed record ShareCode(string Code, long Expires);
 public sealed record ShareClaim(string Player, string? Salt, int Dropped);
 
@@ -80,6 +81,10 @@ public sealed class ShareClient(HttpClient http, Uri api, ECDsa key)
         Send<ShareUploadResult>(HttpMethod.Post, "/v1/summaries", batch, ct);
 
     public Task<ShareMe> MeAsync(CancellationToken ct = default) => Send<ShareMe>(HttpMethod.Get, "/v1/me", null, ct);
+
+    /// <summary>Deletes the named units of one character that this install sent last (up to 200 ids): what its app no longer builds.</summary>
+    public Task<ShareWithdrawn> WithdrawAsync(string character, IReadOnlyList<string> ids, CancellationToken ct = default) =>
+        Send<ShareWithdrawn>(HttpMethod.Post, "/v1/units/withdraw", new { character, ids }, ct);
 
     /// <summary>Deletes everything this player shared, on every linked PC, and forgets the installs.</summary>
     public Task<ShareDeleted> DeleteEverythingAsync(CancellationToken ct = default) => Send<ShareDeleted>(HttpMethod.Delete, "/v1/me", null, ct);

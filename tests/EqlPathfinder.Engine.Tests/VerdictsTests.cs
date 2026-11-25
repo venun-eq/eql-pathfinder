@@ -18,7 +18,7 @@ public class VerdictsTests
         { VisitId = $"v{++_n}", KillLevels = 0.2, Completed = true, Refunded = true, Ended = true };
 
     private static Verdict Judge(LevelingSegment run, List<LevelingSegment> here) =>
-        Verdicts.Judge(run, here, here, Farmed, Options.LevelCap);
+        Verdicts.Judge(run, here, here, Farmed, Options);
 
     private static Visit Farm(string id, double minutes, string zone = "Kedge Keep", int difficulty = 4, double motes = 20)
     {
@@ -78,7 +78,7 @@ public class VerdictsTests
     {
         var earlier = Enumerable.Range(0, 3).Select(_ => Seg("Kedge Keep D1", t5: 10)).ToList();
         var run = Seg("Kedge Keep D1", t5: 10, earlier: false);
-        var v = Verdicts.Judge(run, [.. earlier, run], [.. earlier, run], Farmed, Options.LevelCap,
+        var v = Verdicts.Judge(run, [.. earlier, run], [.. earlier, run], Farmed, Options,
             _ => throw new InvalidOperationException("asked"));
         Assert.NotEqual("none", v.Pace!.Verdict);
     }

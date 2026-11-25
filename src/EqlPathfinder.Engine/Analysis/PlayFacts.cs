@@ -71,6 +71,9 @@ public sealed class PlayFacts
     public int RankAt(string? trio, DateTime time) => (trio?.Split('/') ?? [])
         .Select(c => _roster.Classes.GetValueOrDefault(c) is { } i ? Journeys.RankAt(i, time) : 0).DefaultIfEmpty(0).Max();
 
+    /// <summary>The count of that trio at each bar (<see cref="RankAt(string?, DateTime)"/> at the levels below the first cap): the reincarnations made after reaching a level, for the levels past it.</summary>
+    public Func<int, int> RankByLevel(string? trio, DateTime time, TrackerOptions o) { var cs = trio?.Split('/'); return L => _roster.TrioRankAt(cs, L, o.BaseCap, time); }
+
     /// <summary>The trio of the closed visit nearest <paramref name="time"/>, within <paramref name="hours"/>: who was hunting in the open world then.</summary>
     public string? TrioNear(DateTime time, double hours = 6)
     {
@@ -100,17 +103,17 @@ public sealed class PlayFacts
         int leftOut = 0, bonusLeftOut = 0;
         foreach (var v in closed)
         {
-            if (v.PlayedOnACapLoadout(o.LevelCap)) continue;   // the stopgap until swap-zones: still in History, not a leveling run
+            if (v.PlayedOnACapLoadout(o.CapOn(v))) continue;   // the stopgap until swap-zones: still in History, not a leveling run
             if (LeftOutForDdd(v)) { leftOut++; continue; }
             if (DuringBonus(v.Start, v.EndTime)) { bonusLeftOut++; continue; }
             var trio = Trio(v.Id).Trio;
-            segments.Add(LevelingSegment.From(VisitStats.From(v, v.EndTime, o), RankAt(trio, v.Start), PartyShare(v.Id)) with { Trio = trio });
+            segments.Add(LevelingSegment.From(VisitStats.From(v, v.EndTime, o), RankAt(trio, v.Start), PartyShare(v.Id)) with { Trio = trio, RankAtLevel = RankByLevel(trio, v.Start, o), Cap = o.CapOn(v) });
         }
 
         double fv = o.FragmentValue;
         double Value(PathfinderStore.LootRow l) => Valuation.T5(l.Tier, l.Count, l.Kind == LootKind.Fragment, fv);
         int openLeftOut = 0;
-        foreach (var f in FieldHunts.From(openKills, o.LevelCap))
+        foreach (var f in FieldHunts.From(openKills, o))
         {
             var trio = TrioNear(f.Start);
             if (f.Start < RouteAnalysis.FarmPatch && (trio == null || trio.Split('/').Contains("BRD"))) { openLeftOut++; continue; }
@@ -119,7 +122,8 @@ public sealed class PlayFacts
             var got = openLoot.Where(l => l.Time >= f.Start && l.Time <= end).ToList();
             segments.Add(LevelingSegment.OpenWorld(f, RankAt(trio, f.Start), trio, got.Sum(Value),
                 got.Where(l => MoteTiers.IsHighTier(l.Tier)).Sum(Value), got.Where(l => l.Kind == LootKind.Fragment).Sum(l => l.Count),
-                deaths.Count(e => e.Kind == "death" && e.Time >= f.Start && e.Time <= end)));
+                deaths.Count(e => e.Kind == "death" && e.Time >= f.Start && e.Time <= end)) with
+            { RankAtLevel = RankByLevel(trio, f.Start, o), Cap = o.CapOn(f.Start, f.Level) });
         }
         return (segments, leftOut, openLeftOut, bonusLeftOut);
     }

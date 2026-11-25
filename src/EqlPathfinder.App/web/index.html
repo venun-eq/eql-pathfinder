@@ -221,7 +221,7 @@
         <p>It never reads game memory, never changes game files and never plays for you.</p>
         <div class="sub">Sends</div>
         <ul>
-          <li>Your play, as numbers, only if you turn on sharing. Settings → Sharing shows exactly what goes.</li>
+          <li>Your play, as numbers, only if you turn on sharing. <button class="link" data-go="settings" data-anchor="shareCard">Settings → Sharing</button> shows exactly what goes.</li>
           <li>Feedback and reports, only when you press Send. A report's screenshot shows Pathfinder's page alone, with your character's name, clock times and folders hidden, and you see it first.</li>
           <li>Otherwise it only downloads: updates, the numbers players share, and What's coming.</li>
         </ul></section>
@@ -231,7 +231,7 @@
           <li>A number shows only once enough players and crawls are behind it. Ask says how many.</li>
           <li>One very active player can't drown out the rest: each player's weight in a number is capped.</li>
           <li>Everyone gets them, whether or not they share.</li>
-          <li>Leaving sharing stops new uploads; Settings → Sharing can also delete everything you sent.</li>
+          <li>Leaving sharing stops new uploads; <button class="link" data-go="settings" data-anchor="shareCard">Settings → Sharing</button> can also delete everything you sent.</li>
         </ul></section>
 
       <div class="group">Time</div>
@@ -298,22 +298,22 @@
         <div class="tablewrap" style="margin-top: 10px"><table>
           <thead><tr><th class="l">What changes XP per kill</th><th class="l">How the comparison keeps it fair</th></tr></thead>
           <tbody>
-            <tr><td class="l">Reincarnation</td><td class="l">Not the mob's XP: each reincarnation makes every level need 10% more, so the same kill fills a smaller share of a bigger bar. The most-reincarnated of your trio and race sets it. A run that needed other XP is re-figured for yours, and says so ("9.3 h, or 10.2 h at +20% XP to level").</td></tr>
-            <tr><td class="l">Difficulty</td><td class="l">Only the same difficulty counts as your usual.</td></tr>
-            <tr><td class="l">Solo or group</td><td class="l">Solo against solo: a group splits each kill's XP.</td></tr>
-            <tr><td class="l">Mobs against your level</td><td class="l">Compared at your own level, so outleveling a place shows as the place, not as you being slow.</td></tr>
-            <tr><td class="l">Zone bonuses</td><td class="l">Only the same place counts as your usual.</td></tr>
+            <tr><td class="l">Reincarnation</td><td class="l wrap">Not the mob's XP: each reincarnation makes every level need 10% more, so the same kill fills a smaller share of a bigger bar. The most-reincarnated of your trio and race sets it. A run that needed other XP is re-figured for yours, and says so ("9.3 h, or 10.2 h at +20% XP to level").<span id="helpNewLevels"></span></td></tr>
+            <tr><td class="l">Difficulty</td><td class="l wrap">Only the same difficulty counts as your usual.</td></tr>
+            <tr><td class="l">Solo or group</td><td class="l wrap">Solo against solo: a group splits each kill's XP.</td></tr>
+            <tr><td class="l">Mobs against your level</td><td class="l wrap">Compared at your own level, so outleveling a place shows as the place, not as you being slow.</td></tr>
+            <tr><td class="l">Zone bonuses</td><td class="l wrap">Only the same place counts as your usual.</td></tr>
           </tbody></table></div>
         <div class="pacewords">
           <span class="chip good">On pace</span><span>Kill speed within one run's normal swing of your usual: ±15%, or ±18% when it rests on 3–4 runs. A single run swings about 14% for no reason at all.</span>
           <span class="chip warn">24% slow</span><span>Below that. The overlay says whether it was the killing or the XP.</span>
-          <span class="chip amber">Fading</span><span>Your best place 3 levels back, clearly passed by another at your level. A past crawl is judged as it stood when you started it: only crawls before it count. "Clearly" means by more than the noise of both, and at least 10%.</span>
-          <span class="chip amber">Slower place</span><span>The same test for a place that was never the best.</span>
+          <span class="chip amber">Fading · Kedge Keep levels faster</span><span>Your best place 3 levels back, clearly passed by another at your level. A past crawl is judged as it stood when you started it: only crawls before it count. "Clearly" means by more than the noise of both, and at least 10%.</span>
+          <span class="chip amber">Kedge Keep levels faster</span><span>The same test for a place that was never your best: another place at the same difficulty is clearly faster at your level.</span>
           <span class="chip xp">+20% XP to level</span><span>Your reincarnation penalty, beside any time that's compared: each level needs that much more XP. Mobs give the same XP; the bar is bigger.</span>
           <span class="chip">No usual yet</span><span>Under 3 runs near that level there. Once 3 players share the place, theirs show beside it, as context, never as a verdict.</span>
         </div>
         <p>On the overlay, a bar is green or red only when a verdict judges its number: Kill speed against your usual, XP per kill against what the place gives, T5-eq/h against your usual when you farm. Green is on pace, usual or better; red is below by more than a run's normal swing. The other rows, Levels/h among them, stay grey: their tick still shows where your usual sits.</p>
-        <p><b>Mostly D4.</b> More than half of a relevel&#39;s active hours were in crawls at that difficulty. Home compares a relevel only with yours played mostly at the same difficulty as Ask&#39;s route: a D4 relevel loots far more and levels slower than a D0 one, so their hours don&#39;t compare. When no difficulty has more than half, the relevel is mixed, and compares only with other mixed ones. Fastest or Counting motes on Home changes the route, and with it what you&#39;re compared with.</p>
+        <p><b>Mostly D4.</b> More than half of a relevel&#39;s active hours were in crawls at that difficulty. Home compares a relevel only with yours played mostly at the same difficulty as Ask&#39;s route: a D4 relevel loots far more and levels slower than a D0 one, so their hours don&#39;t compare. When no difficulty has more than half, the relevel is mixed, and compares only with other mixed ones. Ask&#39;s route counts motes when this relevel, or your last, was mostly at difficulties you farm <span style="white-space:nowrap">(<button class="link" data-go="settings" data-anchor="howYouPlay">Settings → How you play</button></span>), and is the fastest otherwise. Home says which, with a link to ask it the other way.</p>
       </section>
 
       <div class="group">Motes</div>
@@ -341,7 +341,7 @@
           <div><div class="sub">The rules</div>
             <ul>
               <li>Going from +t to +t+1 costs 2<sup>t</sup> points, on items and spells: +4 → +5 costs 16, +9 → +10 costs 512.</li>
-              <li>On a spell, a fragment adds what one mote of the next tier does: 2 same-tier motes. On gear it beats a mote by more the higher the item, up to 4.5 at +9 → +10, and fragments condense 2:1, so they belong on your highest gear. T5-eq counts a fragment at the value Settings gives it: What's a fragment worth?, below.</li>
+              <li>On a spell, a fragment adds what one mote of the next tier does: 2 same-tier motes. On gear it beats a mote by more the higher the item, up to 4.5 at +9 → +10, and fragments condense 2:1, so they belong on your highest gear. T5-eq counts a fragment at the value you pick in <button class="link" data-go="settings" data-anchor="fragmentSetting">Settings → Counting</button>; the next card, <button class="link" data-go="help" data-anchor="help-fragment">What's a fragment worth?</button>, says which to pick.</li>
               <li>Condensing at Constructed Potential turns 2 motes into 1 of the next tier. Nothing is lost on spells, a lot on gear: 2 Majors are 10 gear points, the Greater they make is 6. Fragments condense the same way (since the 11-17 patch).</li>
               <li>Reward Chest motes count.</li>
             </ul></div>
@@ -378,14 +378,14 @@
               <li>Take gear to +9 with motes and fragments, and save Void-Touched Potentials for +9 → +10.</li>
               <li>A VTP adds one whole tier, and +9 → +10 is the costliest: 512 points, about 1,640 Majors' worth of Infinite motes. That's where a VTP saves the most.</li>
               <li>With VTPs doing +9 → +10, a fragment's best place is +8 → +9, condensed to Ascendant.</li>
-              <li>Take gear higher or lower with motes? Pick that in Settings → Counting.</li>
+              <li>Take gear higher or lower with motes? Pick that in <button class="link" data-go="settings" data-anchor="fragmentSetting">Settings → Counting</button>.</li>
               <li>The setting only changes how loot counts in T5-eq: on Loot, Home, Ask and the drop banner.</li>
             </ul></div>
         </div></section>
 
       <div class="group">Planning</div>
       <section class="card" id="help-farm"><div class="h">How you play and the farm rate</div>
-        <p>Pathfinder judges a visit at the difficulties you farm (Settings → How you play) by T5-eq per hour against your usual there, and the rest as leveling, by levels per hour. Grouped play, instances you never finished and play at the level cap are always judged by T5-eq per hour. On Ask, Rank by decides what "best" means:</p>
+        <p>Pathfinder judges a visit at the difficulties you farm <span style="white-space:nowrap">(<button class="link" data-go="settings" data-anchor="howYouPlay">Settings → How you play</button></span>) by T5-eq per hour against your usual there, and the rest as leveling, by levels per hour. Grouped play, instances you never finished and play at the level cap are always judged by T5-eq per hour. On Ask, Rank by decides what "best" means:</p>
         <div class="tablewrap" style="margin-top: 10px">
           <table>
             <thead><tr><th class="l">Rank by</th><th class="l">"Best" means</th></tr></thead>
@@ -400,8 +400,8 @@
         <div class="sub">The farm rate</div>
         <ul>
           <li>What an hour at the cap is worth in motes, used to weigh levels against motes.</li>
-          <li>Taken from your own crawls at the cap since the 11-10 patch, at the difficulties you farm for motes (Settings → How you play; D3 and D4 unless you change them): your best place or your typical, once three of them have a rate.</li>
-          <li>Until then, or if you prefer, the rate you set in Settings. Without either, a default of 50 T5-eq/h. Ask and Upgrades say which one they use.</li>
+          <li>Taken from your own crawls at the cap since the 11-10 patch, at the difficulties you farm for motes <span style="white-space:nowrap">(<button class="link" data-go="settings" data-anchor="howYouPlay">Settings → How you play</button></span>; D3 and D4 unless you change them): your best place or your typical, once three of them have a rate.</li>
+          <li>Until then, or if you prefer, a rate you type yourself: pick Set it under <button class="link" data-go="settings" data-anchor="farmRateSetting">Settings → Counting → Farm rate</button>. Without either, a default of 50 T5-eq/h. Ask and Upgrades say which one they use.</li>
         </ul></section>
       <section class="card"><div class="h">Your loadouts and /who</div>
         <p>Pathfinder follows your loadout swaps within seconds, from the files the game saves for each loadout.</p>
@@ -439,7 +439,7 @@
         <div class="cols">
           <ul>
             <li>The log says "Class Reincarnation: Warrior" with no number, so Pathfinder counts the ones it sees.</li>
-            <li>Any from while your log was off are invisible to it. Set them under Plan → Roster (Set counts…).</li>
+            <li>Any from while your log was off are invisible to it. Set them under <button class="link" data-go="roster">Plan → Roster</button> (Set counts…).</li>
           </ul>
           <ul>
             <li>A count you set is your total as of that moment. Ones the log shows afterwards add to it.</li>
@@ -451,7 +451,7 @@
       <section class="card"><div class="h">DPS and kill time</div>
         <ul>
           <li>DPS counts your melee, spells, DoTs, damage shield and your pet.</li>
-          <li>History's DPS is damage over all your time inside. Ask's damage comparison counts only the seconds you were fighting, and the fight meter can use either (Settings → Overlays → DPS counts).</li>
+          <li>History's DPS is damage over all your time inside. Ask's damage comparison counts only the seconds you were fighting, and the fight meter can use either <span style="white-space:nowrap">(<button class="link" data-go="settings" data-anchor="meterSettings">Settings → Overlays → Fight meter</button></span>, DPS counts).</li>
           <li>A charmed pet counts as yours only while the charm holds, and only on what it was sent at or what you're fighting. Damage to yourself never counts.</li>
           <li>Kill time is the median from your first hit on a mob to its death.</li>
         </ul></section>
@@ -459,7 +459,7 @@
         <ul>
           <li><b>DDD before the patch:</b> crawls from before the 11-10 patch where Denon's Desperate Dirge did most of the damage count for nothing: not in routes, farm rates, paces, Ask or the shared numbers. DDD since the nerf counts like any other spell.</li>
           <li><b>Bard hunts before the patch:</b> open-world hunts from before it on a bard (or unknown) trio, since damage outside instances isn't kept.</li>
-          <li><b>Planes below 46:</b> Hate, Fear and Sky open at 46, so Ask never offers them lower, and visits from before that rule are left out.</li>
+          <li><b>Planes below 46:</b> Hate, Fear and Sky open at 46, so Ask never offers them lower. A plane visit your history puts below 46 was a loadout at the cap you'd swapped to without a /who since, so its level is the last one Pathfinder saw: Ask leaves it out.</li>
           <li><b>Idle and travel:</b> quiet time past 3 minutes inside, and gaps over 4 minutes outside (the diagram under Time).</li>
         </ul></section>
     </div>

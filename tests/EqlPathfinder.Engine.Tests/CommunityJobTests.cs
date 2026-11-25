@@ -49,7 +49,7 @@ public class CommunityJobTests
             new SharedDamage(1000, 900, 0, new Dictionary<string, long>(), new Dictionary<string, long> { ["Fireball"] = 1000 }),
             new Dictionary<string, int>(),
             new SharedLoot(new Dictionary<int, int> { [5] = 4 }, new Dictionary<int, int>(), new Dictionary<int, int>(), new Dictionary<int, int>()),
-            new CrawlDerived(1, 1, 0, 30, 0));
+            End: 0);
         return GzipHex(JsonSerializer.Serialize(crawl, CommunityBuilder.Json));
     }
 

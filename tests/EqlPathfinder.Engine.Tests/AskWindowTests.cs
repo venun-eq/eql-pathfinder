@@ -70,7 +70,7 @@ public class AskWindowTests
             "Ogre", 0, 10, 11, 1800, true, false, null,
             Enumerable.Range(0, 20).Select(i => new CompactRow($"[{i},1.2,0,8,10]")).ToList(), [], [], Enumerable.Repeat(600, deaths).ToList(),
             new SharedDamage(360000, 1800, 0, new Dictionary<string, long>(), new Dictionary<string, long> { ["Fireball"] = 360000 }),
-            new Dictionary<string, int>(), new SharedLoot(new Dictionary<int, int> { [5] = 4 }, new Dictionary<int, int>(), new Dictionary<int, int>(), new Dictionary<int, int>()), new CrawlDerived(1, 1, 0, 30, 0));
+            new Dictionary<string, int>(), new SharedLoot(new Dictionary<int, int> { [5] = 4 }, new Dictionary<int, int>(), new Dictionary<int, int>(), new Dictionary<int, int>()), End: 0);
         var crawls = Enumerable.Range(0, 3).Select(_ => new PlayerCrawl("a", Crawl(0)))
             .Concat(Enumerable.Range(0, 3).Select(_ => new PlayerCrawl("b", Crawl(1)))).ToList();
         var file = CommunityBuilder.Build(crawls, new CommunityRules(MinPlayers: 2, MinCrawls: 5), now);

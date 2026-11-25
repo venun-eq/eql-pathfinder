@@ -30,8 +30,22 @@ public sealed class TrackerOptions
     public const double DefaultFarmRate = 50;
     /// <summary>What you optimize for: balanced (levels against motes), speed (levels/h), motes (T5-eq/h) or rare (above-T5 drops).</summary>
     public string Goal { get; set; } = "balanced";
-    /// <summary>Level cap (50 now; Kunark raises it to 55).</summary>
-    public int LevelCap { get; set; } = 50;
+    /// <summary>The expansions the level cap is read from, by the day of play (<see cref="Tracking.Expansions"/>). Shipped in the release, never saved.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<Expansion> Expansions { get; set; } = Tracking.Expansions.All;
+    /// <summary>The level cap on the day of <paramref name="t"/>; with <paramref name="level"/> above it, the cap that holds the level.</summary>
+    public int CapOn(DateTime t, int? level = null) => Tracking.Expansions.CapOn(Expansions, t, level);
+    /// <summary>The cap on the day a visit started, at its level.</summary>
+    public int CapOn(Visit v) => CapOn(v.Start, v.LevelStart);
+    /// <summary>The highest cap in the list, for sizing arrays only.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int MaxCap => Tracking.Expansions.MaxCap(Expansions);
+    /// <summary>The first expansion's cap: the levels every XP penalty count is true for (<see cref="Incarnation.RankAt"/>).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int BaseCap => Expansions.Count == 0 ? 50 : Expansions[0].LevelCap;
+    /// <summary>The XP multiplier of the bar at <paramref name="level"/> for the trio's classes (<see cref="Roster.TrioRankAt"/>).</summary>
+    public double XpAt(Roster roster, IEnumerable<string>? trioClasses, int level, DateTime? since = null) =>
+        Analysis.Planner.XpMultiplier(roster.TrioRankAt(trioClasses, level, BaseCap, since));
     /// <summary>Your priorities for the next trio (the app's Plan page).</summary>
     public Analysis.PlanPrefs Plan { get; set; } = Analysis.PlanPrefs.Default;
     /// <summary>
@@ -53,6 +67,16 @@ public sealed class Incarnation
     /// <summary>When the log showed each reincarnation.</summary>
     public List<DateTime> Seen { get; set; } = new();
     /// <summary>
+    /// Beside <see cref="Seen"/>: the level each reincarnation counts up to, as the log saw it. The highest level the class or race had been seen
+    /// at before it, or the cap of that day when the log never saw it there, and never less than the first expansion's cap (a reincarnation
+    /// always counts for the levels that were there from the start). See <see cref="RankAt"/>.
+    /// </summary>
+    public List<int> SeenLevels { get; set; } = new();
+    /// <summary>The highest level seen since the last reincarnation; null until a ding or /who with it active (<see cref="Level"/> restarts at 1, which is no sighting).</summary>
+    public int? Peak { get; set; }
+    /// <summary>When the count typed in Settings was said (<see cref="EnteredCount.AsOf"/>); set whenever <see cref="Rank"/> is.</summary>
+    public DateTime? EnteredAsOf { get; set; }
+    /// <summary>
     /// The rank the log last stated, and when: a second or later reincarnation says it ("You have improved Class
     /// Reincarnation: Shadow Knight 2"). 0 until such a line; a first ("gained the ability") states none.
     /// </summary>
@@ -63,6 +87,22 @@ public sealed class Incarnation
     public int? Level { get; set; }
     public DateTime? ReachedCap { get; set; }
     public DateTime? LastActive { get; set; }
+
+    /// <summary>
+    /// The reincarnations that make the bar at <paramref name="level"/> (the XP to go from it to the next) bigger: all of them below
+    /// <paramref name="baseCap"/> (the first expansion's cap, where <see cref="Rank"/> is the whole truth), and from there only the ones the log
+    /// saw made after the class had reached the level above it. Counts typed in Settings and gaps below a stated rank count up to the base cap only.
+    /// <paramref name="since"/>: as it stood then (the reincarnations after it left out, with 30 s of slack as <see cref="Analysis.Journeys.RankAt"/> has).
+    /// </summary>
+    public int RankAt(int level, int baseCap, DateTime? since = null)
+    {
+        int upTo = since is { } s ? Seen.Count(t => t <= s.AddSeconds(30)) : Seen.Count;
+        if (level < baseCap) return since is null ? Rank : Math.Max(0, Rank - (Seen.Count - upTo));
+        int n = 0;
+        for (int k = 0; k < upTo; k++)
+            if ((EnteredAsOf is not { } e || Seen[k] > e) && (k < SeenLevels.Count ? SeenLevels[k] : baseCap) > level) n++;
+        return n;
+    }
 }
 
 public sealed class Roster
@@ -92,6 +132,17 @@ public sealed class Roster
         return Math.Max(0, entered.Count) + i.Seen.Count(t => t > entered.AsOf);
     }
 
+    /// <summary>Sets one rank (<see cref="Effective"/>) and when the count behind it was typed.</summary>
+    public static void SetRank(Incarnation i, EnteredCount? entered)
+    {
+        i.Rank = Effective(i, entered);
+        i.EnteredAsOf = entered?.AsOf;
+    }
+
+    /// <summary>The trio's count at a bar: its most-reincarnated class there (classes only, docs/pace.md).</summary>
+    public int TrioRankAt(IEnumerable<string>? classes, int level, int baseCap, DateTime? since = null) =>
+        (classes ?? []).Select(c => Classes.GetValueOrDefault(c) is { } i ? i.RankAt(level, baseCap, since) : 0).DefaultIfEmpty(0).Max();
+
     /// <summary>Sets every rank from the log and your entered counts. Safe to repeat.</summary>
     public void Apply(IReadOnlyDictionary<string, EnteredCount>? entered)
     {
@@ -101,8 +152,8 @@ public sealed class Roster
                 if (key.StartsWith("race:", StringComparison.OrdinalIgnoreCase)) Race(key[5..]);
                 else if (key.StartsWith("class:", StringComparison.OrdinalIgnoreCase)) Class(key[6..]);
             }
-        foreach (var (name, i) in Classes) i.Rank = Effective(i, entered?.GetValueOrDefault(Key(false, name)));
-        foreach (var (name, i) in Races) i.Rank = Effective(i, entered?.GetValueOrDefault(Key(true, name)));
+        foreach (var (name, i) in Classes) SetRank(i, entered?.GetValueOrDefault(Key(false, name)));
+        foreach (var (name, i) in Races) SetRank(i, entered?.GetValueOrDefault(Key(true, name)));
     }
 }
 
@@ -120,7 +171,7 @@ public sealed class EngineState
     /// "with a bonus", which the parser missed, and the bonus-XP events it marks). A
     /// checkpoint from an older version is rebuilt from the logs.
     /// </summary>
-    public const int CurrentVersion = 16;   // 16 = a /who and the loadout state it fills (the slot on, each slot met), read from logs (current-loadout); 15 = a way back into a D0 instance goes through its open world, and 1-point hits are read (visit-boundaries); 14 = a kill at the cap is never an XP kill, and a kill's level is its XP line's (numbers-check-cap); 13 = XP lines at the cap are not levels (xp-at-cap); 12 = a kill is its slain line, not its XP line (kills-at-cap); 11 = a raid's boss kill is kept (judge-by-play); 10 = a crawl's levels belong to the loadout that played it (report #8)
+    public const int CurrentVersion = 19;   // 19 = a swap seen at login counts once the game confirms it (login-swap); 18 = each reincarnation keeps the level it counts up to, for the XP penalty by level (kunark-cap); 17 = the level cap is read by the day of play, Kunark 55 from 12-08 (kunark-cap); 16 = a /who and the loadout state it fills (the slot on, each slot met), read from logs (current-loadout); 15 = a way back into a D0 instance goes through its open world, and 1-point hits are read (visit-boundaries); 14 = a kill at the cap is never an XP kill, and a kill's level is its XP line's (numbers-check-cap); 13 = XP lines at the cap are not levels (xp-at-cap); 12 = a kill is its slain line, not its XP line (kills-at-cap); 11 = a raid's boss kill is kept (judge-by-play); 10 = a crawl's levels belong to the loadout that played it (report #8)
     public int Version { get; set; } = CurrentVersion;
     public string Character { get; set; } = "";
     /// <summary>The first line in the logs: nothing before it can be known.</summary>
@@ -196,6 +247,12 @@ public sealed class EngineState
     public DateTime? LastWhoTime { get; set; }
     /// <summary>Highest <c>loadout_events</c> row ID already ingested by the engine (idempotent cursor).</summary>
     public long LoadoutRow { get; set; }
+    /// <summary>The last login line ("Welcome to EverQuest Legends!"); a swap the files show around it is a guess (login-swap).</summary>
+    public DateTime? LoginAt { get; set; }
+    /// <summary>The swap seen at the last login, held until a /who, a zone or a later swap confirms it; a ding its slot's level rules out drops it.</summary>
+    public Parsing.LoadoutSwapped? PendingSwap { get; set; }
+    /// <summary>A swap has been taken since the last login: only the first can be the login's.</summary>
+    public bool SwappedSinceLogin { get; set; }
 }
 
 /// <summary>What one loadout slot is known to be: the classes and race its last /who named, and its level since.</summary>

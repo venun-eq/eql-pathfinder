@@ -36,6 +36,26 @@ const xpPct = x => `+${fmt((x - 1) * 100, 0)}%`;
 const xpTip = x => x > 1.0001
   ? `Each level needs ${fmt((x - 1) * 100, 0)}% more XP than before reincarnating. Mobs give the same XP: a kill fills a smaller share of the bar only because the bar is bigger.`
   : "No reincarnation penalty: each level needs its usual XP.";
+/** The levels the newest expansion added that nobody has numbers for yet (reinc.newLevels: expansion, day, from, to, rank), or null. */
+const newLv = () => data?.reinc?.newLevels ?? null;
+/** "12-08" from the expansion's day. */
+const newDay = n => n.day.slice(5);
+/** Why Ask has no route there, in the page's words; `shared` is whether other players' numbers are in the answer. */
+const routeTop = legs => Math.max(newLv().from, ...(legs ?? []).map(l => l.to ?? 0));
+const noRouteHead = top => `No route past ${top ?? newLv().from} yet`;
+const noRouteSub = (shared, top) => { const n = newLv(), there = top > n.from ? `past ${top}` : "there"; return `${n.expansion} opened levels ${n.from + 1} to ${n.to} on ${newDay(n)}, and ${shared ? `neither your logs nor the players who share have crawls ${there} yet.` : `your logs have no crawls ${there} yet. Once other players share, their places show here.`}`; };
+/** The XP chip for a level at or past the old cap: usual XP, or the penalty the trio has there. `rank` is the trio's count to the old cap. */
+function xpPastChip(trioKey, rank) {
+  const n = newLv();
+  if (n.rank > 0) return `<span class="chip xp" title="${esc(xpTip(xpOf(n.rank)))}">${xpWords(xpOf(n.rank))}</span>`;
+  if (!(rank > 0)) return "";
+  const tip = `Levels ${n.from + 1} to ${n.to} came with ${n.expansion}: none of ${(trioKey ?? "").split("/").join(", ")} or your race has reincarnated since reaching them, so each needs its usual XP. Levels 1 to ${n.from} need ${xpPct(xpOf(rank))}.`;
+  return `<span class="chip xp" title="${esc(tip)}">No extra XP to level past ${n.from}</span>`;
+}
+/** What a title adds below the old cap: the new levels need their usual XP. */
+const xpNewTip = () => { const n = newLv(); return n ? ` Levels ${n.from + 1} to ${n.to} need their usual XP: +0%, new levels.` : ""; };
+/** "to go", or "to 50" when the hours stop at the highest level anyone played (a journey's or a campaign run's etaTo). */
+const etaWords = j => { const n = newLv(); return n && j?.etaTo != null && j.etaTo < n.to ? `to ${j.etaTo}` : "to go"; };
 /** A trio's like-for-like pace in words (1.08 → "8% faster than your usual"), never "×1.08". */
 function paceVs(p, short) {
   if (p == null) return "—";
@@ -177,10 +197,10 @@ function drawGhost(host, cfg) {
   // Finish labels above the top line: the earlier on its left, the later on its right.
   const ends = [];
   if (best) ends.push({ h: best.hours, text: `best ${fmt(best.hours)} h`, color: "#8fb8f5" });
-  if (cfg.proj?.length) { const e = cfg.proj[cfg.proj.length - 1]; ends.push({ h: e.hours, text: `you ≈ ${fmt(e.hours)} h`, color: "var(--gold)", ring: true }); }
+  if (cfg.proj?.length) { const e = cfg.proj[cfg.proj.length - 1]; ends.push({ h: e.hours, text: `you ≈ ${fmt(e.hours)} h${e.level < top ? ` to ${Math.round(e.level)}` : ""}`, color: "var(--gold)", ring: true, level: Math.min(top, e.level) }); }
   else if (band.hi.length) ends.push({ h: band.hi[band.hi.length - 1].hours, text: `middle half ${fmt(band.lo[band.lo.length - 1].hours)}–${fmt(band.hi[band.hi.length - 1].hours)} h`, color: "#a9b1ba" });
   ends.sort((a, b) => a.h - b.h).forEach((e, i) => {
-    if (e.ring) s += `<circle cx="${X(e.h)}" cy="${Y(top)}" r="4.5" fill="var(--panel)" stroke="var(--gold)" stroke-width="2"/>`;
+    if (e.ring) s += `<circle cx="${X(e.h)}" cy="${Y(e.level ?? top)}" r="4.5" fill="var(--panel)" stroke="var(--gold)" stroke-width="2"/>`;
     const left = ends.length > 1 && i === 0;
     s += `<text x="${X(e.h) + (left ? -8 : 8)}" y="${T - 9}" fill="${e.color}" font-size="12" text-anchor="${left ? "end" : "start"}">${esc(e.text)}</text>`;
   });

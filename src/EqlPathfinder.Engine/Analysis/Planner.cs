@@ -51,7 +51,7 @@ public static class Planner
 
         var leveling = journeys.FirstOrDefault(j => !j.Done);
         if (leveling != null)
-            advice.Add(new("current", $"Finish {leveling.Trio} first: level {leveling.LevelNow} of {o.LevelCap}",
+            advice.Add(new("current", $"Finish {leveling.Trio} first: level {leveling.LevelNow} of {o.CapOn(leveling.End, leveling.LevelNow)}",
                 leveling.EtaHours is { } eta ? $"About {eta:0.0} active hours to go ({leveling.EtaNote})." : "Not enough finished trios yet to estimate the rest."));
 
         // The XP rule, made concrete for this roster.

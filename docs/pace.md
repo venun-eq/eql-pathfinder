@@ -114,6 +114,19 @@ Single kills swing far more (named mobs against trash), so verdicts use whole ru
   solo, group against group, instances only), the overlay adds "Players here: 3.9 kills a minute, 2.6 levels/h (3
   players)" at your XP penalty. It's context only and never a verdict (`OthersHere` in `Analysis/RunPace.cs`).
 - A relevel's XP rank counts the trio's classes only, not the race (`Journeys.Build`, 11-17).
+- **The XP penalty is by level** (11-24, the user; `Incarnation.RankAt`, `Roster.TrioRankAt`): a reincarnation makes a bar
+  bigger only if the class had reached that level before making it. Each reincarnation the log sees keeps the highest level
+  its class had been seen at (the cap of that day when never seen, and never below the first expansion's cap), beside
+  `Seen`. So three made at 50 before Kunark are +30% to level 50 (bars 1 to 49) and nothing for 51 to 55; one more made after
+  reaching 55 is +40% to 50 and +10% for 51 to 55. A trio counts its highest class at each level (classes only, above). `Rank`
+  stays every reincarnation: the count to level 50. A count typed in Settings, and a gap below a stated rank, count to the
+  first cap only (a count typed after 12-08 can't say how many came after 55). Players who share: their play past 50 is taken
+  as played, their `Rank` as sent (decision 15, queue row penalty-by-level-shared). Ask, the relevel paces and the overlay take
+  the multiplier of each level (`LevelingSegment.XpAt`, `Journey.XpAt`, `Xp`), never one for the whole visit.
+- **Hours to go stop at the highest level a finished relevel reached** (`Journeys.HoursPerLevel`, `Journey.EtaTo`): a level
+  nobody played has no hours, so at or above it a relevel has none ("≈ 6 h to 50" at 32; nothing at 50).
+- **Ask keeps a bar for every level the list reaches** (`AskData.BarCount` = highest cap - 1), not 49. A visit below the cap of
+  its day is leveling, not cap play: it never feeds band "50" (the cap band, whatever the cap is).
 - **Ask → Level from A to B, You against players who share** (11-17, the user: "being able to see where I'm lagging
   behind the community and what can improve"): each place you and they have both played at the asked levels, your
   minutes a level against theirs at your XP penalty, most time lost first (`Ask.Against`). It says "17% more time",

@@ -82,8 +82,18 @@ public sealed record LevelingSegment(string Place, string Zone, int? Difficulty,
     public static string PlaceName(string baseZone, int? difficulty) => ZoneName(baseZone) + (difficulty is { } d ? $" D{d}" : "");
     public static string OpenPlace(string zone) => ZoneName(zone) + " · open world";
 
-    /// <summary>The XP a level needed then, against rank 0.</summary>
-    public double XpMultiplier => Planner.XpMultiplier(Rank);
+    /// <summary>The cap on the day it was played, when known: a visit below it is leveling, whatever its level (band "50" is play at the cap).</summary>
+    public int? Cap { get; init; }
+
+    /// <summary>The reincarnation count at the bar of a level, when it differs by level past the first expansion's cap (<see cref="Incarnation.RankAt"/>); null: <see cref="Rank"/>.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Func<int, int>? RankAtLevel { get; init; }
+
+    /// <summary>The XP the bar at a level needed then, against rank 0: the penalty counts the reincarnations made after reaching the level.</summary>
+    public double XpAt(int level) => Planner.XpMultiplier(RankAtLevel?.Invoke(level) ?? Rank);
+
+    /// <summary>The XP a level needed then at the level it started, against rank 0.</summary>
+    public double XpMultiplier => XpAt(LevelStart ?? 1);
 
     /// <summary>Played in a group: most of its kills gave party experience.</summary>
     public bool Grouped => PartyShare >= 0.5;
@@ -101,10 +111,10 @@ public sealed record LevelingSegment(string Place, string Zone, int? Difficulty,
 /// </summary>
 public sealed record PlaceLevels(string Place, double?[] Minutes, double[] T5PerHour, int[] Crawls, DateTime?[] Last)
 {
-    public double? At(int level) => level is >= 1 and <= 49 ? Minutes[level - 1] : null;
-    public double T5At(int level) => level is >= 1 and <= 49 ? T5PerHour[level - 1] : 0;
-    public int CrawlsAt(int level) => level is >= 1 and <= 49 ? Crawls[level - 1] : 0;
-    public DateTime? LastAt(int level) => level is >= 1 and <= 49 ? Last[level - 1] : null;
+    public double? At(int level) => level >= 1 && level <= Minutes.Length ? Minutes[level - 1] : null;
+    public double T5At(int level) => level >= 1 && level <= T5PerHour.Length ? T5PerHour[level - 1] : 0;
+    public int CrawlsAt(int level) => level >= 1 && level <= Crawls.Length ? Crawls[level - 1] : 0;
+    public DateTime? LastAt(int level) => level >= 1 && level <= Last.Length ? Last[level - 1] : null;
 
     /// <summary>Per-level extra rates when present in the source (local logs or schema 2+ community files).</summary>
     public LevelExtras? Extras { get; init; }
@@ -120,7 +130,7 @@ public sealed record PlaceLevels(string Place, double?[] Minutes, double[] T5Per
         double w = 0, m = 0, t5 = 0, hi = 0, fr = 0, de = 0, ki = 0, dw = 0, dps = 0, hours = 0;
         int visits = 0;
         DateTime? last = null;
-        for (int j = Math.Max(1, level - k); j <= Math.Min(49, level + k); j++)
+        for (int j = Math.Max(1, level - k); j <= Math.Min(Minutes.Length, level + k); j++)
         {
             if (At(j) is not { } a || CrawlsAt(j) <= 0) continue;
             double wj = (k + 1 - Math.Abs(j - level)) * CrawlsAt(j);
@@ -194,6 +204,9 @@ public sealed class AskData
 
     public static readonly string[] BandNames = ["1-10", "11-20", "21-30", "31-40", "41-49", "50"];
 
+    /// <summary>How many bars Ask keeps per place: the levels that need XP to the highest cap in <see cref="Expansions.All"/>, so a later expansion is one more entry there.</summary>
+    public static int BarCount => Expansions.MaxCap(Expansions.All) - 1;
+
     public static string BandOf(int level) => level <= 10 ? "1-10" : level <= 20 ? "11-20" : level <= 30 ? "21-30" : level <= 40 ? "31-40" : level <= 49 ? "41-49" : "50";
 
     /// <summary>
@@ -226,16 +239,16 @@ public sealed class AskData
         var places = Levels(ranked, W);
         var placesSincePatch = Levels(ranked.Where(v => v.Start >= patch), W);
 
-        var placed = ranked.Where(v => v.LevelStart != null).ToList();   // every source: crawls, other instances, the open world
+        var placed = ranked.Where(v => v.LevelStart != null && (v.Cap is not { } cap || v.LevelStart >= cap || BandOf(v.LevelStart.Value) != BandNames[^1])).ToList();   // every source: crawls, other instances, the open world
         var bands = new List<BandStat>();
         foreach (var since in new[] { false, true })
             bands.AddRange(placed.Where(v => !since || v.Start >= patch)
                 .GroupBy(v => (Band: BandOf(v.LevelStart!.Value), v.Place))
                 .Select(g => Stat(g.Key.Band, g.Key.Place, since, g.ToList(), W)));
 
-        var diffs = ranked.Where(v => v.LevelStart != null).Where(v => v.Difficulty != null && v.LevelStart < 50)
+        var diffs = ranked.Where(v => v.LevelStart != null).Where(v => v.Difficulty != null && v.LevelStart < (v.Cap ?? Expansions.All[0].LevelCap))
             .GroupBy(v => (v.Zone, From: (v.LevelStart!.Value - 1) / 5 * 5 + 1))
-            .Select(g => new DifficultyCompare(g.Key.Zone, g.Key.From, Math.Min(50, g.Key.From + 4),
+            .Select(g => new DifficultyCompare(g.Key.Zone, g.Key.From, Math.Min(Expansions.MaxCap(Expansions.All), g.Key.From + 4),
                 g.GroupBy(v => v.Difficulty!.Value).OrderBy(x => x.Key).Select(x =>
                 {
                     double h = Math.Max(1.0 / 3600, x.Sum(v => W(v) * v.ActiveMinutes) / 60);
@@ -290,14 +303,14 @@ public sealed class AskData
     private static List<PlaceLevels> Levels(IEnumerable<LevelingSegment> visits, Func<LevelingSegment, double> weight)
     {
         var cells = new Dictionary<string, Cells>();
-        foreach (var v in visits.Where(v => v.LevelStart is >= 1 and < 50 && v.Levels > 0.05))
+        foreach (var v in visits.Where(v => v.LevelStart is >= 1 && v.LevelStart <= BarCount && v.Levels > 0.05))
         {
             if (!cells.TryGetValue(v.Place, out var c)) cells[v.Place] = c = new Cells();
             double perLevel = v.ActiveMinutes / v.Levels, left = v.Levels, w = weight(v);
-            for (int L = v.LevelStart!.Value; left > 1e-9 && L < 50; L++)
+            for (int L = v.LevelStart!.Value; left > 1e-9 && L <= BarCount; L++)
             {
                 double part = Math.Min(1, left), share = w * part / v.Levels;
-                c.Min0[L] += w * part * perLevel / v.XpMultiplier;
+                c.Min0[L] += w * part * perLevel / v.XpAt(L);
                 c.MinA[L] += w * part * perLevel;
                 c.Lv[L] += w * part;
                 c.LvRaw[L] += part;
@@ -316,13 +329,13 @@ public sealed class AskData
         return cells.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv =>
         {
             var c = kv.Value;
-            double[] Per(Func<int, double> f) => Enumerable.Range(1, 49).Select(f).ToArray();
+            double[] Per(Func<int, double> f) => Enumerable.Range(1, BarCount).Select(f).ToArray();
             double PerHour(double[] x, int L) => c.MinA[L] > 0 ? Math.Round(x[L] / c.MinA[L] * 60, 2) : 0;
             return new PlaceLevels(kv.Key,
-                Enumerable.Range(1, 49).Select(L => c.LvRaw[L] >= 0.3 && c.Lv[L] > 0 ? Math.Round(c.Min0[L] / c.Lv[L], 1) : (double?)null).ToArray(),
+                Enumerable.Range(1, BarCount).Select(L => c.LvRaw[L] >= 0.3 && c.Lv[L] > 0 ? Math.Round(c.Min0[L] / c.Lv[L], 1) : (double?)null).ToArray(),
                 Per(L => c.MinA[L] > 0 ? Math.Round(c.T5[L] / c.MinA[L] * 60, 1) : 0),
-                Enumerable.Range(1, 49).Select(L => c.N[L]).ToArray(),
-                Enumerable.Range(1, 49).Select(L => c.Last[L]).ToArray())
+                Enumerable.Range(1, BarCount).Select(L => c.N[L]).ToArray(),
+                Enumerable.Range(1, BarCount).Select(L => c.Last[L]).ToArray())
             {
                 Extras = new LevelExtras(Per(L => Math.Round(c.RawMin[L] / 60, 3)), Per(L => PerHour(c.High, L)), Per(L => PerHour(c.Frag, L)),
                     Per(L => PerHour(c.Deaths, L)), Per(L => c.MinA[L] > 0 ? Math.Round(c.Kills[L] / c.MinA[L], 2) : 0),
@@ -334,11 +347,11 @@ public sealed class AskData
     /// <summary>Running sums for one place, indexed by level (0 unused).</summary>
     private sealed class Cells
     {
-        public readonly double[] Min0 = new double[50], MinA = new double[50], Lv = new double[50], LvRaw = new double[50], RawMin = new double[50],
-            T5 = new double[50], High = new double[50], Frag = new double[50], Deaths = new double[50], Kills = new double[50],
-            DpsNum = new double[50], DpsDen = new double[50];
-        public readonly int[] N = new int[50];
-        public readonly DateTime?[] Last = new DateTime?[50];
+        public readonly double[] Min0 = new double[BarCount + 1], MinA = new double[BarCount + 1], Lv = new double[BarCount + 1], LvRaw = new double[BarCount + 1], RawMin = new double[BarCount + 1],
+            T5 = new double[BarCount + 1], High = new double[BarCount + 1], Frag = new double[BarCount + 1], Deaths = new double[BarCount + 1], Kills = new double[BarCount + 1],
+            DpsNum = new double[BarCount + 1], DpsDen = new double[BarCount + 1];
+        public readonly int[] N = new int[BarCount + 1];
+        public readonly DateTime?[] Last = new DateTime?[BarCount + 1];
     }
 
     /// <summary>Levels either side that a level's numbers draw on (<see cref="PlaceLevels.Window"/>; chosen by docs/ask-backtest.md).</summary>
@@ -437,7 +450,7 @@ public static class Ask
     /// trio being leveled. With <paramref name="pool"/> (the players who share), places only they have played join, and a
     /// place both have is read as yours and theirs together (<see cref="PoolVisits"/>).
     /// </summary>
-    public static Route Chain(AskData d, int from, int to, bool countMotes, double farmRate, double xpMultiplier = 1, AskData? pool = null)
+    public static Route Chain(AskData d, int from, int to, bool countMotes, double farmRate, Xp xpMultiplier = default, AskData? pool = null)
     {
         farmRate = Math.Max(1, farmRate);
         var mine = d.Places.GroupBy(p => p.Place).ToDictionary(g => g.Key, g => g.First());
@@ -457,11 +470,11 @@ public static class Ask
                 LevelWindow? a = p?.Window(L), b = theirs.GetValueOrDefault(name)?.Window(L);
                 if (a == null && b == null) return null;
                 double z = a == null ? 0 : b == null ? 1 : MineShare(a.Visits);
-                double m = (z * (a?.Minutes ?? 0) + (1 - z) * (b?.Minutes ?? 0)) * xpMultiplier;
+                double m = (z * (a?.Minutes ?? 0) + (1 - z) * (b?.Minutes ?? 0)) * xpMultiplier.At(L);
                 double t5 = z * (a?.T5PerHour ?? 0) + (1 - z) * (b?.T5PerHour ?? 0);
                 bool thin = b == null && (!a!.Exact || p!.CrawlsAt(L) < 2);
                 double cost = (countMotes ? m * (1 - t5 / farmRate) : m) + (thin ? ThinPenalty : 0);
-                return new Step(L, name, m, a is { Exact: true } ? p!.CrawlsAt(L) : 0, t5, a?.Last, a?.Minutes * xpMultiplier, b?.Minutes * xpMultiplier, z, cost);
+                return new Step(L, name, m, a is { Exact: true } ? p!.CrawlsAt(L) : 0, t5, a?.Last, a?.Minutes * xpMultiplier.At(L), b?.Minutes * xpMultiplier.At(L), z, cost);
             }).OfType<Step>().ToList();
             if (cands.Count == 0) { gaps.Add(L); continue; }
             var next = new Dictionary<string, (double Cost, List<Step> Path)>();
@@ -542,7 +555,7 @@ public static class Ask
     /// Places between two levels with both local and community data, ordered slowest-vs-community first.
     /// Requires <see cref="MinCrawls"/> local visits. Comparison context only, never a pace verdict.
     /// </summary>
-    public static List<Versus> Against(AskData d, AskData pool, int from, int to, double xpMultiplier = 1)
+    public static List<Versus> Against(AskData d, AskData pool, int from, int to, Xp xpMultiplier = default)
     {
         var theirs = pool.Places.GroupBy(p => p.Place).ToDictionary(g => g.Key, g => g.First());
         var list = new List<Versus>();
@@ -555,7 +568,7 @@ public static class Ask
             for (int L = from; L < to; L++)
             {
                 if (!ZoneGates.Open(p.Place, L) || p.Window(L) is not { Exact: true } a || q.Window(L) is not { Exact: true } b) continue;
-                me += a.Minutes; them += b.Minutes;
+                me += a.Minutes * xpMultiplier.At(L); them += b.Minutes * xpMultiplier.At(L);
                 km += a.KillsPerMinute * a.Minutes; kt += b.KillsPerMinute * b.Minutes;
                 kills &= a.KillsPerMinute > 0 && b.KillsPerMinute > 0;
                 visits = Math.Max(visits, a.Visits);
@@ -563,21 +576,21 @@ public static class Ask
                 hi = L;
             }
             if (n == 0 || visits < MinCrawls) continue;
-            list.Add(new Versus(p.Place, lo, hi + 1, n, Math.Round(me / n * xpMultiplier, 1), Math.Round(them / n * xpMultiplier, 1), visits,
+            list.Add(new Versus(p.Place, lo, hi + 1, n, Math.Round(me / n, 1), Math.Round(them / n, 1), visits,
                 kills ? Math.Round(km / me, 2) : 0, kills ? Math.Round(kt / them, 2) : 0));
         }
         return list.OrderByDescending(v => v.Gap).ThenBy(v => v.Place, StringComparer.Ordinal).ToList();
     }
 
     /// <summary>Other ways through the same levels: single places that cover them all (quickest first), then the ones that cover the most.</summary>
-    public static List<Alternative> Alternatives(AskData d, int from, int to, Route chosen, int take = 3, double xpMultiplier = 1)
+    public static List<Alternative> Alternatives(AskData d, int from, int to, Route chosen, int take = 3, Xp xpMultiplier = default)
     {
         int span = to - from;
         var used = chosen.Legs.Select(l => l.Place).ToHashSet();
         var cover = d.Places.Select(p =>
         {
             var have = Enumerable.Range(from, span).Where(L => ZoneGates.Open(p.Place, L) && p.Window(L) != null).ToList();
-            return (p.Place, Have: have, Minutes: have.Sum(L => p.Window(L)!.Minutes * xpMultiplier));
+            return (p.Place, Have: have, Minutes: have.Sum(L => p.Window(L)!.Minutes * xpMultiplier.At(L)));
         }).Where(x => x.Have.Count > 0).ToList();
         var whole = cover.Where(x => x.Have.Count == span && !(chosen.Legs.Count == 1 && used.Contains(x.Place)))
             .OrderBy(x => x.Minutes).Take(take)
@@ -599,8 +612,9 @@ public static class Ask
     /// The rows a level is ranked from: every place around it (±1 level, <see cref="AskData.Near"/>) below the cap, the cap's
     /// own rows at it. Never a 10-level band: those compared one place's play at 21–25 with another's at 26–30.
     /// </summary>
-    public static IEnumerable<BandStat> RowsAt(AskData d, int level, bool sincePatch) => level < 50
+    public static IEnumerable<BandStat> RowsAt(AskData d, int level, bool sincePatch) => level < Expansions.All[0].LevelCap
         ? d.Near(level, sincePatch)
+        : level > Expansions.All[0].LevelCap ? []   // nothing farmed past the first cap until the bands read the new levels
         : d.Bands.Where(b => b.Band == AskData.BandOf(level) && b.SincePatch == sincePatch && ZoneGates.Open(b.Place, level));
 
     /// <summary>Mote farms at a level, most T5-eq per hour first (places that looted almost nothing, or rest on too little, are left out).</summary>

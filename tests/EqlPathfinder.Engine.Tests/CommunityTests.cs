@@ -17,7 +17,7 @@ public class CommunityTests
             Enumerable.Range(0, 20).Select(i => new CompactRow(FormattableString.Invariant($"[{i * 60},{levels * 5},{(i < 5 ? 1 : 0)},8,{level}]"))).ToList(), [], [], [],
             new SharedDamage(dmg.Values.Sum(), minutes * 30, 0, new Dictionary<string, long>(), dmg), new Dictionary<string, int>(),
             new SharedLoot(motes ?? new() { [5] = 4 }, frags ?? new(), new Dictionary<int, int>(), new Dictionary<int, int>()),
-            new CrawlDerived(levels, levels, 0, minutes, 0));
+            End: 0);
     }
 
     [Fact]
@@ -63,8 +63,8 @@ public class CommunityTests
     [Fact]
     public void SchemaTwoUnitsStillRead()
     {
-        // Before schema 3 a crawl had no trioSource or casts.
-        var json = """{"id":"x","day":"2026-11-14","seq":1,"kind":"crawl","zone":"Befallen","difficulty":4,"trio":"WIZ","trioConfirmed":true,"rank":0,"levelStart":10,"levelEnd":11,"activeSeconds":1800,"completed":true,"refunded":false,"kills":[],"rewards":[],"dings":[],"deaths":[],"damage":{"total":100,"fightSeconds":60,"taken":0,"bySource":{},"byAbility":{}},"loot":{"motes":{"5":2},"fragments":{},"chestMotes":{},"chestFragments":{}},"derived":{"levels":1,"killLevels":1,"rewardLevels":0,"activeMinutes":30,"idleMinutes":0}}""";
+        // Before schema 3 a crawl had no trioSource or casts (and "derived", which is ignored now; "end" is added: without it the job leaves a crawl out).
+        var json = """{"id":"x","day":"2026-11-14","seq":1,"kind":"crawl","zone":"Befallen","difficulty":4,"trio":"WIZ","trioConfirmed":true,"rank":0,"levelStart":10,"levelEnd":11,"activeSeconds":1800,"completed":true,"refunded":false,"end":1800,"kills":[],"rewards":[],"dings":[],"deaths":[],"damage":{"total":100,"fightSeconds":60,"taken":0,"bySource":{},"byAbility":{}},"loot":{"motes":{"5":2},"fragments":{},"chestMotes":{},"chestFragments":{}},"derived":{"levels":1,"killLevels":1,"rewardLevels":0,"activeMinutes":30,"idleMinutes":0}}""";
         var c = CommunityBuilder.ReadCrawl(json)!;
         Assert.Null(c.TrioSource);
         Assert.Equal(2, CommunityBuilder.Visit(c)!.T5, 6);
@@ -123,10 +123,10 @@ public class CommunityTests
     [Fact]
     public void TheJobWorksLevelsAndActiveTimeOutFromTheFacts()
     {
-        // The app sent 2 levels and 99 active minutes, but its kills add up to 1 level: the facts win.
-        var c = Crawl(levels: 1, minutes: 30) with { Derived = new CrawlDerived(2, 2, 0, 99, 0) };
+        // The levels are the kills' XP, the active minutes the time inside less idle: both from the facts.
+        var c = Crawl(levels: 1, minutes: 30);
         Assert.Equal(1, CommunityBuilder.Visit(c)!.Levels, 6);
-        Assert.Equal(99, CommunityBuilder.Visit(c)!.ActiveMinutes, 6);   // no pauses or end (an app before schema 4): its minutes stand
+        Assert.Equal(30, CommunityBuilder.Visit(c)!.ActiveMinutes, 6);   // kills a minute apart, an end at the last kill: no idle
 
         // Schema 4: kills at 0, 60 … 1140 s, out from 300 to 900 s, ending at 1500 s with 1800 s inside. The 600 s outside
         // aren't idle; the last kill to the end (360 s) is 180 over the 3-minute threshold.
@@ -200,7 +200,6 @@ public class CommunityTests
         Assert.Equal(crawl.Day, back.Day);
         Assert.Equal(crawl.Kills.Count, back.Kills.Count);
         Assert.Equal(1, back.Loot.Fragments[7]);
-        Assert.Equal(crawl.Derived, back.Derived);
         Assert.Equal(CommunityBuilder.Visit(crawl)!.T5, CommunityBuilder.Visit(back)!.T5);
     }
 
@@ -258,8 +257,8 @@ public class CommunityTests
         Assert.Null(CommunityBuilder.Visit(Crawl() with { LevelStart = 250 }));
 
         // NaN / Infinity must never slip past range checks into the pool.
-        Assert.Null(CommunityBuilder.Visit(Crawl() with { Derived = new CrawlDerived(1, 1, 0, double.NaN, 0) }));
-        Assert.Null(CommunityBuilder.Visit(Crawl() with { Derived = new CrawlDerived(1, 1, 0, double.PositiveInfinity, 0) }));
+        Assert.Null(CommunityBuilder.Visit(Crawl() with { ActiveSeconds = double.NegativeInfinity, End = 1800 }));
+        Assert.Null(CommunityBuilder.Visit(Crawl() with { ActiveSeconds = double.PositiveInfinity, End = 1800 }));
         Assert.Null(CommunityBuilder.Visit(Crawl() with { ActiveSeconds = double.NaN, End = 1800 }));
 
         // Overflowing fragment counts or DDD damage values must not throw OverflowException.
@@ -269,11 +268,11 @@ public class CommunityTests
         Assert.Null(CommunityBuilder.Visit(Crawl(day: "2026-11-02") with { Damage = hugeDdd }));
 
         // Hostile open-world stretch: negative rank, control chars, NaN derived.
-        var badStretch = new SharedStretch("s1", "2026-11-14", 1, "Befallen\0bad", [], new StretchDerived(30, 1));
+        var badStretch = new SharedStretch("s1", "2026-11-14", 1, "Befallen\0bad", []);
         Assert.Null(CommunityBuilder.Hunt(badStretch, []));
-        var negRankStretch = new SharedStretch("s2", "2026-11-14", 1, "Befallen", [], new StretchDerived(30, 1), Trio: "WIZ/ENC/CLR", Rank: -5);
+        var negRankStretch = new SharedStretch("s2", "2026-11-14", 1, "Befallen", [new CompactRow("[0,10,0,8,10]")], Trio: "WIZ/ENC/CLR", Rank: -5);
         Assert.Null(CommunityBuilder.Hunt(negRankStretch, []));
-        var nanStretch = new SharedStretch("s3", "2026-11-14", 1, "Befallen", [], new StretchDerived(double.NaN, 1), Trio: "WIZ/ENC/CLR", Rank: 0);
+        var nanStretch = new SharedStretch("s3", "2026-11-14", 1, "Befallen", [], Trio: "WIZ/ENC/CLR", Rank: 0);
         Assert.Null(CommunityBuilder.Hunt(nanStretch, []));
     }
 }

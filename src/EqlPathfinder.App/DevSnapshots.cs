@@ -514,6 +514,9 @@ internal static class DevSnapshots
             await shot("home-farming-classes-changed");
             await core.ExecuteScriptAsync("{ const [h, t, rc, l, ct] = JSON.parse(window.loSaved); data.reinc.homeNow = Object.assign(h, { mode: 'farming', loadout: { slot: 6, state: 'new' }, level: 50 }); data.snapshot.trio = null; data.reinc.currentTrio = null; data.snapshot.race = null; data.snapshot.level = 50; homePick = null; show('home'); renderHome(); document.querySelector('#main').scrollTop = 0; }");
             await shot("home-farming-new-loadout");
+            // Below the cap on a relevel reincarnated and not played yet (home-below-cap-state): the engine's row heads the card, the other open relevels are Parked.
+            await core.ExecuteScriptAsync("{ const [h, t, rc, l, ct] = JSON.parse(window.loSaved); const un = h.parked.find(p => p.journeyIndex == null) ?? h.parked[0]; data.reinc.homeNow = Object.assign(h, { mode: 'relevel', now: un, parked: h.parked.filter(p => p !== un).concat(h.now ? [h.now] : []), loadout: { slot: 6, state: 'known' }, level: un.level }); data.snapshot.trio = un.trio; data.reinc.currentTrio = un.trio; data.snapshot.race = un.race; data.snapshot.level = un.level; data.reinc.currentLevel = un.level; { const rt = data.reinc.home.route, ls = rt.legs.filter(x => x.to > un.level).map((x, i) => i ? x : Object.assign({}, x, { from: un.level })); data.reinc.home.route = Object.assign({}, rt, { from: un.level, legs: ls, minutes: rt.minutes * (rt.to - un.level) / (rt.to - rt.from) }); data.reinc.homeKind = Object.assign({}, data.reinc.homeKind, { source: 'last', trio: h.parked[0]?.trio ?? un.trio }); } homePick = null; show('home'); renderHome(); document.querySelector('#main').scrollTop = 0; }");
+            await shot("home-unplayed");
             await core.ExecuteScriptAsync("{ const [h, t, rc, l, ct] = JSON.parse(window.loSaved); data.reinc.homeNow = h; data.snapshot.trio = t; data.snapshot.race = rc; data.snapshot.level = l; data.reinc.currentTrio = ct; renderHome(); }");
             // Help scrolled to "Your loadouts and /who" (current-loadout): the top of Help doesn't show it.
             await core.ExecuteScriptAsync("{ show('help'); const m = document.querySelector('#main'), c = [...document.querySelectorAll('#main .card')].find(x => (x.querySelector('.h')?.textContent ?? '').includes('Your loadouts')); if (c) m.scrollTop = c.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 20; }");
@@ -742,6 +745,11 @@ internal static class DevSnapshots
                 await shot("help-counts-" + i);
                 await core.ExecuteScriptAsync("document.querySelector('#main').scrollTop += document.querySelector('#main').clientHeight - 60;");
             }
+            // Help's links: the Motes card and the fragment card ("Not sure?"), then the click on the fragment card's Settings link.
+            await core.ExecuteScriptAsync("show('help'); document.querySelector('#help-fragment').scrollIntoView({ block: 'start' }); document.querySelector('#main').scrollTop -= 220;");
+            await shot("help-links");
+            await core.ExecuteScriptAsync("document.querySelector('#help-fragment [data-anchor=\"fragmentSetting\"]').click();");
+            await shot("settings-from-help");
             // Upgrades: an item from the export, +5 to +10, with the demo bank.
             await core.ExecuteScriptAsync("upReq = Object.assign({}, UP_DEFAULT, { item: 'Cudgel of the Fool', tier: 5, goal: 10, gear: [{ tier: 5, progress: 0, place: '', on: true }] }); " +
                 "show('upgrade'); upg = window.upgradeDemo; upItemsKey = upg.inventory.time + '|' + upItemList().size; upSent = []; renderUpgrade();");

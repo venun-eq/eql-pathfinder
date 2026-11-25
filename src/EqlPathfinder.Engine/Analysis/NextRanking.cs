@@ -26,13 +26,13 @@ public static class NextRanking
     /// against farming when <paramref name="motes"/> (the player is playing for motes), else by speed; the route Ask would take
     /// decides the first (it weighs changing place too); and where that route goes next when it changes place within 2 levels.
     /// </summary>
-    public static List<NextOption> Leveling(AskData d, int level, int cap, bool motes, double farmRate, double xp, string lastLabel)
+    public static List<NextOption> Leveling(AskData d, int level, int cap, bool motes, double farmRate, Xp xp, string lastLabel)
     {
         // Each place open at this level, read as Ask reads it (with the levels beside it).
         NextOption? At(PlaceLevels p, int lv, int? from = null)
         {
             if (!ZoneGates.Open(p.Place, lv) || p.Window(lv) is not { Visits: >= 2 } w) return null;
-            double lph = 60 / (w.Minutes * xp), t5 = w.T5PerHour;
+            double lph = 60 / (w.Minutes * xp.At(lv)), t5 = w.T5PerHour;
             return new NextOption(p.Place, lph, t5, RouteAnalysis.CostPerLevel(farmRate, t5, lph), w.Visits, from, from == null && p.Place == lastLabel);
         }
         var here = d.Places.Select(p => At(p, level)).OfType<NextOption>()

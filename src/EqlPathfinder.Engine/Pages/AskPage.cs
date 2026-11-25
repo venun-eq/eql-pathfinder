@@ -104,16 +104,17 @@ public sealed record AskPool(int Players, int Crawls, DateTime Generated, int Pl
 /// <param name="Community">The players who share (null without their numbers).</param>
 // FarmRate stays trailing-optional: the tests build AskInputs positionally; the one app caller (TrackerService) always passes it.
 public sealed record AskInputs(IReadOnlyList<LevelingSegment> Segments, int LeftOut, int OpenLeftOut, TrackerOptions Options, int Level,
-    string? Trio, int Rank, CommunityData? Community, DateTime Now, int BonusLeftOut = 0, int NoRateLeftOut = 0, double FarmRate = TrackerOptions.DefaultFarmRate);
+    string? Trio, int Rank, CommunityData? Community, DateTime Now, int BonusLeftOut = 0, int NoRateLeftOut = 0, double FarmRate = TrackerOptions.DefaultFarmRate,
+    Func<int, int>? RankAtLevel = null);
 
 public static class AskPage
 {
     private sealed record BuildContext(
         string Q, string Where, string With, int From, int To, bool Motes, int At, bool Patch,
-        List<LevelingSegment> Picked, AskData Data, double Xp, CommunityView? Pool,
+        List<LevelingSegment> Picked, AskData Data, Xp Xp, CommunityView? Pool,
         List<LevelingSegment> Counted, List<LevelingSegment> InRange, int FarmUnrated, int LevelUnrated)
     {
-        public string Around => At < 50 ? AskData.WindowOf(At) : AskData.BandOf(At);
+        public string Around => At < Expansions.All[0].LevelCap ? AskData.WindowOf(At) : AskData.BandOf(At);
     }
 
     /// <summary>
@@ -132,9 +133,9 @@ public static class AskPage
         string? communityGap = input.Community != null && ctx.Pool == null
             ? (ctx.Where == "open" ? "the open world" : "solo and grouped play apart") : null;
 
-        return new AskAnswer("ask", ctx.Q, ctx.Where, ctx.With, input.Level, o.LevelCap, ctx.Data.Visits,
+        return new AskAnswer("ask", ctx.Q, ctx.Where, ctx.With, input.Level, o.CapOn(input.Now), ctx.Data.Visits,
             input.LeftOut, input.OpenLeftOut, Math.Round(input.FarmRate),
-            input.Rank, input.Trio, (int)Math.Round((ctx.Xp - 1) * 100), AskData.HalfLifeDays,
+            input.Rank, input.Trio, (int)Math.Round((ctx.Xp.At(Math.Min(ctx.At, o.BaseCap - 1)) - 1) * 100), AskData.HalfLifeDays,
             BuildSources(ctx),
             BuildRoute(ctx, input),
             BuildFarm(ctx),
@@ -142,7 +143,7 @@ public static class AskPage
             BuildDifficulty(query, ctx),
             BuildPoolSummary(ctx, input),
             openWithoutPool,
-            ctx.Q == "places" ? Places(ctx.Data, ctx.Picked, ctx.Patch, o.LevelCap, ctx.Xp, input.FarmRate, input.Trio) : null,
+            ctx.Q == "places" ? Places(ctx.Data, ctx.Picked, ctx.Patch, o.CapOn(input.Now), ctx.Xp, input.FarmRate, input.Trio) : null,
             communityGap,
             ctx.Data.Drift?.PerMonthPercent, input.BonusLeftOut, ctx.Q == "farm" ? ctx.FarmUnrated : ctx.LevelUnrated);
     }
@@ -150,19 +151,19 @@ public static class AskPage
     private static BuildContext CreateContext(AskQuery query, AskInputs input)
     {
         var o = input.Options;
-        int level = input.Level;
+        int level = input.Level, cap = o.CapOn(input.Now);
         string q = query.Q is "level" or "farm" or "diff" or "dmg" or "places" ? query.Q : "level";
         string where = query.Where is "instances" or "open" ? query.Where : "all";
         string with = query.With is "solo" or "group" ? query.With : "either";
-        int from = Math.Clamp(query.From ?? (level < o.LevelCap ? level : 1), 1, 49);
-        int to = Math.Clamp(query.To ?? (level < o.LevelCap ? Math.Min(o.LevelCap, from + 10) : o.LevelCap), from + 1, 50);
+        int from = Math.Clamp(query.From ?? (level < cap ? level : 1), 1, cap - 1);
+        int to = Math.Clamp(query.To ?? (level < cap ? Math.Min(cap, from + 10) : cap), from + 1, cap);
         bool motes = (query.Goal ?? (o.Goal == "speed" ? "fast" : "motes")) == "motes";
-        int at = Math.Clamp(query.At ?? level, 1, 50);
+        int at = Math.Clamp(query.At ?? level, 1, cap);
         bool patch = query.Scope != "all";
 
         var picked = LevelingSegment.Filter(input.Segments, where, with).ToList();
         var d = AskData.From(picked, RouteAnalysis.FarmPatch, input.Now, onlyWithRate: true);
-        double xp = Planner.XpMultiplier(input.Rank);
+        Xp xp = input.RankAtLevel is { } rankAt ? Xp.Of(rankAt) : Planner.XpMultiplier(input.Rank);
         var pool = input.Community?.For(where, with, o.FragmentValue);
         var counted = picked.Where(AskData.Counts).ToList();
         var inRange = counted.Where(x => x.LevelStart is { } ls && ls < to && ls >= from - 5).ToList();
@@ -170,7 +171,7 @@ public static class AskPage
         // The farm answer leaves out the visits of its own level (within one below the cap) and scope with no rate.
         // Crawls only, as its rows and the farm rate count them: open-world hunts and other instances are not crawls.
         int farmUnrated = d.UnratedAt.Count(u => u.Type == "crawl"
-            && (at >= o.LevelCap ? u.Level >= o.LevelCap : Math.Abs(u.Level - at) <= AskData.WindowLevels)
+            && (at >= cap ? u.Level >= cap : Math.Abs(u.Level - at) <= AskData.WindowLevels)
             && (!patch || u.Start >= RouteAnalysis.FarmPatch));
         int levelUnrated = d.UnratedAt.Count(u => u.Level < to && u.Level >= from - 5);
 
@@ -188,7 +189,7 @@ public static class AskPage
     {
         var d = ctx.Data;
         var pool = ctx.Pool;
-        double xp = ctx.Xp;
+        Xp xp = ctx.Xp;
         int from = ctx.From, to = ctx.To;
         var fast = Ask.Chain(d, from, to, false, input.FarmRate, xp, pool?.Ask);
         var withMotes = Ask.Chain(d, from, to, true, input.FarmRate, xp, pool?.Ask);
@@ -240,9 +241,9 @@ public static class AskPage
         var before = ctx.Patch && farms.Count == 0 ? Ask.Farms(d, ctx.At, false).FirstOrDefault() : null;
         var poolFarms = pool == null ? null : Ask.Farms(pool.Ask, ctx.At, ctx.Patch);
 
-        AskBand ToBand(BandStat b) => new(b.Place, b.Crawls, b.Hours, Math.Round(b.LevelsPerHour / ctx.Xp, 2), b.T5PerHour,
+        AskBand ToBand(BandStat b) => new(b.Place, b.Crawls, b.Hours, Math.Round(b.LevelsPerHour / ctx.Xp.At(ctx.At), 2), b.T5PerHour,
             b.HighTierPerHour, b.FragmentsPerHour, b.DeathsPerHour, b.Dps);
-        AskPoolBand ToPoolBand(BandStat b) => new(b.Place, b.Crawls, b.Hours, Math.Round(b.LevelsPerHour / ctx.Xp, 2), b.T5PerHour,
+        AskPoolBand ToPoolBand(BandStat b) => new(b.Place, b.Crawls, b.Hours, Math.Round(b.LevelsPerHour / ctx.Xp.At(ctx.At), 2), b.T5PerHour,
             b.HighTierPerHour, b.FragmentsPerHour, b.DeathsPerHour, b.Dps, pool!.PlayersFor(b, ctx.At));
 
         return new AskFarm(ctx.At, ctx.Around, ctx.Patch ? "patch" : "all",
@@ -261,10 +262,10 @@ public static class AskPage
         (double Dps, int Players)? Typical(string place)
         {
             if (pool == null) return null;
-            var t = ctx.At < 50 && poolPerLevel
+            var t = ctx.At < Expansions.All[0].LevelCap && poolPerLevel
                 ? pool.Ask.Near(ctx.At, false).FirstOrDefault(x => x.Place == place && x.Dps > 0)
                 : pool.Ask.Bands.FirstOrDefault(x => x.Place == place && x.Band == AskData.BandOf(ctx.At) && !x.SincePatch && x.Dps > 0);
-            return t == null ? null : (t.Dps, ctx.At < 50 && poolPerLevel ? pool.PlayersNear(place, ctx.At) : pool.PlayersFor(t));
+            return t == null ? null : (t.Dps, ctx.At < Expansions.All[0].LevelCap && poolPerLevel ? pool.PlayersNear(place, ctx.At) : pool.PlayersFor(t));
         }
 
         var rows = Ask.Damage(ctx.Data, ctx.At).Take(8).Select(b =>
@@ -289,7 +290,7 @@ public static class AskPage
             : asked != null ? pool.Ask.Difficulties.FirstOrDefault(x => x.Key == asked) : Ask.NearestDifficulty(pool.Ask, ctx.At);
 
         AskDiffPick ToPick(DifficultyCompare p, bool shared) => new(p.Key, p.Zone, p.From, p.To, p.Columns.Select(x => new AskDiffColumn(
-            x.Difficulty, x.Crawls, Math.Round(x.LevelsPerHour / ctx.Xp, 2), x.T5PerHour, x.DeathsPerHour, x.KillsPerMinute,
+            x.Difficulty, x.Crawls, Math.Round(x.LevelsPerHour / ctx.Xp.At(ctx.At), 2), x.T5PerHour, x.DeathsPerHour, x.KillsPerMinute,
             shared ? pool!.PlayersFor(p, x.Difficulty) : 0)).ToList());
 
         var options = d.Difficulties.Concat(pool?.Ask.Difficulties ?? []).DistinctBy(x => x.Key)
@@ -311,12 +312,12 @@ public static class AskPage
     /// XP your trio needs, each level read with the ones beside it), and the map of where you leveled. The page ranks them
     /// by the measure you pick, and its best-place-per-level strip comes from the same rows.
     /// </summary>
-    private static AskPlaces Places(AskData d, IReadOnlyList<LevelingSegment> picked, bool patch, int cap, double xp, double farmRate, string? trio)
+    private static AskPlaces Places(AskData d, IReadOnlyList<LevelingSegment> picked, bool patch, int cap, Xp xp, double farmRate, string? trio)
     {
-        var levels = Enumerable.Range(1, Math.Min(49, cap - 1)).Select(L => new AskPlaceLevel(L, AskData.WindowOf(L),
-            d.Near(L, patch).Select(b => new AskPlaceRow(b.Place, b.Crawls, b.Hours, Math.Round(b.LevelsPerHour / xp, 2), b.T5PerHour,
+        var levels = Enumerable.Range(1, Math.Min(AskData.BarCount, cap - 1)).Select(L => new AskPlaceLevel(L, AskData.WindowOf(L),
+            d.Near(L, patch).Select(b => new AskPlaceRow(b.Place, b.Crawls, b.Hours, Math.Round(b.LevelsPerHour / xp.At(L), 2), b.T5PerHour,
                 b.HighTierPerHour, b.FragmentsPerHour, b.DeathsPerHour, b.KillsPerMinute, Ask.Enough(d, b), b.Last.ToString("yyyy-MM-dd"), b.Exact,
-                PlaceCheck.At(d, b.Place, L, xp, ZoneGates.Open)?.Kind == "fading", RouteAnalysis.CostPerLevel(farmRate, b.T5PerHour, b.LevelsPerHour / xp)))
+                PlaceCheck.At(d, b.Place, L, xp.At(L), ZoneGates.Open)?.Kind == "fading", RouteAnalysis.CostPerLevel(farmRate, b.T5PerHour, b.LevelsPerHour / xp.At(L))))
                 .ToList())).ToList();
         var bars = picked.Where(s => s.LevelStart is { } ls && ls < cap && s.Levels > 0 && (!patch || s.Start >= RouteAnalysis.FarmPatch)).OrderBy(s => s.Start).ToList();
         var map = bars

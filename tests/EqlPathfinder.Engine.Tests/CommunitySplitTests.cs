@@ -19,10 +19,10 @@ public class CommunitySplitTests
         new("c" + Guid.NewGuid().ToString("N")[..8], day, seq, "crawl", zone, 4, trio, true, "who", "Ogre", 0, level, level + (int)levels,
             minutes * 60, true, false, null, Kills(level, grouped, minutes, levels), [], [], [],
             new SharedDamage(1000, minutes * 30, 0, new Dictionary<string, long>(), new Dictionary<string, long> { ["Fireball"] = 1000 }),
-            new Dictionary<string, int>(), new SharedLoot(new Dictionary<int, int> { [5] = 4 }, new Dictionary<int, int>(), new Dictionary<int, int>(), new Dictionary<int, int>()), new CrawlDerived(levels, levels, 0, minutes, 0));
+            new Dictionary<string, int>(), new SharedLoot(new Dictionary<int, int> { [5] = 4 }, new Dictionary<int, int>(), new Dictionary<int, int>(), new Dictionary<int, int>()), End: 0);
 
     private static SharedStretch Stretch(string zone, int level, string day = "2026-11-14", int seq = 2, double minutes = 30, double levels = 1.5,
-        bool grouped = false) => new("s" + Guid.NewGuid().ToString("N")[..8], day, seq, zone, Kills(level, grouped, minutes, levels), new StretchDerived(minutes, levels));
+        bool grouped = false) => new("s" + Guid.NewGuid().ToString("N")[..8], day, seq, zone, Kills(level, grouped, minutes, levels));
 
     private static (List<PlayerCrawl>, List<PlayerStretch>) TwoPlayers(Func<string, IEnumerable<SharedCrawl>> crawls, Func<string, IEnumerable<SharedStretch>> stretches) =>
         (new[] { "p1", "p2" }.SelectMany(p => crawls(p).Select(c => new PlayerCrawl(p, c))).ToList(),

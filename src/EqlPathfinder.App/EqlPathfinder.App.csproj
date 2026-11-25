@@ -12,7 +12,7 @@
     <StartupObject>EqlPathfinder.App.Program</StartupObject>
     <ApplicationIcon>Assets\pathfinder.ico</ApplicationIcon>
     <Product>EQL Pathfinder</Product>
-    <Version>0.10.34</Version>
+    <Version>0.10.36</Version>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 

@@ -30,7 +30,7 @@ public class ClassRolesWiringTests
         try
         {
             using var store = new PathfinderStore(Path.Combine(dir, "t.db"));
-            using var svc = new TrackerService(store, new CharacterLogs("Venun", "oggok", log, [log]), new TrackerOptions { LevelCap = 50 }, new FixedClock(Now));
+            using var svc = new TrackerService(store, new CharacterLogs("Venun", "oggok", log, [log]), new TrackerOptions { Expansions = [new("Classic", DateTime.MinValue, 50)] }, new FixedClock(Now));
             await svc.ImportHistoryAsync();
             svc.Start();
             await body(svc);

@@ -10,7 +10,8 @@
   and without it they fail and say where they looked (docs\quality.md). They are never skipped.
   Always, and first because they take a second: the pipeline's own parts on samples (the release-note parser, the
   role gate, the hooks), the agents' and skills' front matter, docs\code-map.md against the files it names
-  (tools\mapcheck.mjs), and tools\webcheck.mjs against copies of the page scripts with a slip in each.
+  (tools\mapcheck.mjs), docs\queue.md (only its samples on GitHub's CI, whose snapshot has no queue), and
+  tools\webcheck.mjs against copies of the page scripts with a slip in each.
   When server\ changed (or -All): the Worker's typecheck and its tests in workerd.
   When site\ or docs\releases\ changed (or -All): the website's typecheck and build (What's new is built from the notes).
   Exits non-zero on the first failure.
@@ -654,7 +655,12 @@ foreach ($s in $qbSamples) {
     Remove-Item $f, "$f.out" -ErrorAction SilentlyContinue
     if ($qbCode -ne 1 -or -not $qbOut.Contains($s.Message)) { throw "check failed: tools\queue-board.mjs, given a queue with a $($s.Name) problem, exited $qbCode and said: $qbOut" }
 }
-Invoke-Step "queue board" { node (Join-Path $root "tools\queue-board.mjs") --check }
+# The public snapshot leaves docs\queue.md out (tools\github.json), and GitHub's CI runs this on the snapshot: there the
+# samples above are the check. Everywhere else a missing queue fails.
+if ((Test-Path (Join-Path $root "docs\queue.md")) -or -not $env:GITHUB_ACTIONS) {
+    Invoke-Step "queue board" { node (Join-Path $root "tools\queue-board.mjs") --check }
+}
+else { Write-Host "== queue board: the samples only (the public snapshot has no docs\queue.md)" }
 
 # tools\webcheck.mjs against copies of the page scripts with one slip in each: a gate that passes them isn't one.
 # When a page's own answer arrives, core.js writes names that other files declare (docs\code-map.md). Each copy has one

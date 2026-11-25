@@ -58,7 +58,14 @@ public sealed record RunPace(string Verdict, double? KillSpeed, double? UsualKil
     /// group the same. Only runs that started before it, so a verdict is fixed once the run is over (docs/pace.md). Kill speed's usual is the median of those within 2 levels; XP per kill's comes from all of them, each
     /// re-figured for this run's XP penalty and read at this run's level along the place's slope.
     /// </summary>
-    public static RunPace For(LevelingSegment run, IEnumerable<LevelingSegment> history) => Judge(run, history) with { XpMultiplier = run.XpMultiplier };
+    public static RunPace For(LevelingSegment run, IEnumerable<LevelingSegment> history) => Judge(run, history) with { XpMultiplier = run.XpAt(BarOf(run)) };
+
+    /// <summary>The bar the run ended on; a run at the cap of its own day was farming, and reads the penalty of the bar below (the levels it needed).</summary>
+    private static int BarOf(LevelingSegment run)
+    {
+        int bar = (run.LevelStart ?? 1) + (int)Math.Floor(run.Levels), cap = run.Cap ?? Tracking.Expansions.All[0].LevelCap;
+        return bar >= cap ? cap - 1 : bar;
+    }
 
     /// <summary>The XP this run's levels needed (1.2 = "+20% XP"), for the views to say so beside the numbers.</summary>
     public double XpMultiplier { get; init; } = 1;
@@ -215,10 +222,14 @@ public sealed record FarmPace(string Verdict, double? Pct, double? Usual, int Ru
     private static double Rate(LevelingSegment s) => Rates.PerHour(s.T5, s.PlayedMinutes) ?? 0;
 
     /// <summary>What the usual is made of, in words. Below the cap it says which levels (the usual is within <see cref="LevelWindow"/> of the visit's), at the cap it doesn't: every level there is 50.</summary>
-    public static string BasisOf(LevelingSegment run, int levelCap)
+    public static string BasisOf(LevelingSegment run, int levelCap) => BasisOf(run, (_, _) => levelCap);
+
+    public static string BasisOf(LevelingSegment run, Tracking.TrackerOptions o) => BasisOf(run, o.CapOn);
+
+    internal static string BasisOf(LevelingSegment run, Func<DateTime, int?, int> capOn)
     {
         string kind = run.Grouped ? "grouped" : Finished(run) ? "crawls you finished, solo" : "instances you didn't finish";
-        return run.LevelStart is { } l && l < levelCap ? $"{kind}, {LevelsOf(l)}" : kind;
+        return run.LevelStart is { } l && l < capOn(run.Start, l) ? $"{kind}, {LevelsOf(l)}" : kind;
     }
 
     /// <summary>
@@ -236,23 +247,31 @@ public sealed record FarmPace(string Verdict, double? Pct, double? Usual, int Ru
         $"No usual here yet: {runs} of {RunPace.MinRuns} earlier visits like this one{(levels != null ? " at " + levels : "")}.";
 
     /// <summary>The earlier visits a farming usual is made of: this place, solo or group, finished or not like this one (<see cref="Finished"/>), within <see cref="LevelWindow"/> levels, any trio, each with a rate.</summary>
-    public static List<LevelingSegment> Peers(LevelingSegment run, IEnumerable<LevelingSegment> history, IReadOnlyCollection<int> farmed, int levelCap)
+    public static List<LevelingSegment> Peers(LevelingSegment run, IEnumerable<LevelingSegment> history, IReadOnlyCollection<int> farmed, int levelCap) => Peers(run, history, farmed, (_, _) => levelCap);
+
+    public static List<LevelingSegment> Peers(LevelingSegment run, IEnumerable<LevelingSegment> history, IReadOnlyCollection<int> farmed, Tracking.TrackerOptions o) => Peers(run, history, farmed, o.CapOn);
+
+    internal static List<LevelingSegment> Peers(LevelingSegment run, IEnumerable<LevelingSegment> history, IReadOnlyCollection<int> farmed, Func<DateTime, int?, int> capOn)
     {
-        string kind = VisitKinds.Of(run, farmed, levelCap);
+        string kind = VisitKinds.Of(run, farmed, capOn);
         bool finished = Finished(run);
         // Finished crawls without a refund were too low-level (gear-only chest); exclude from farming usuals.
         return run.LevelStart is not { } level ? [] : history.Where(h => h.Place == run.Place && h.Grouped == run.Grouped && h.Completed == finished && (!h.Completed || h.Refunded)
             && h.LevelStart is { } hl && Math.Abs(hl - level) <= LevelWindow && Rates.Has(h.Completed, h.Kills) && h.PlayedMinutes > 0
-            && (run.VisitId == null || h.VisitId != run.VisitId) && h.Start < run.Start && VisitKinds.ByMotes(VisitKinds.Of(h, farmed, levelCap)) == VisitKinds.ByMotes(kind)).ToList();
+            && (run.VisitId == null || h.VisitId != run.VisitId) && h.Start < run.Start && VisitKinds.ByMotes(VisitKinds.Of(h, farmed, capOn)) == VisitKinds.ByMotes(kind)).ToList();
     }
 
-    public static FarmPace For(LevelingSegment run, IEnumerable<LevelingSegment> history, IReadOnlyCollection<int> farmed, int levelCap)
+    public static FarmPace For(LevelingSegment run, IEnumerable<LevelingSegment> history, IReadOnlyCollection<int> farmed, int levelCap) => For(run, history, farmed, (_, _) => levelCap);
+
+    public static FarmPace For(LevelingSegment run, IEnumerable<LevelingSegment> history, IReadOnlyCollection<int> farmed, Tracking.TrackerOptions o) => For(run, history, farmed, o.CapOn);
+
+    internal static FarmPace For(LevelingSegment run, IEnumerable<LevelingSegment> history, IReadOnlyCollection<int> farmed, Func<DateTime, int?, int> capOn)
     {
-        string basis = BasisOf(run, levelCap);
-        string? levels = run.LevelStart is { } ls && ls < levelCap ? LevelsOf(ls) : null;
+        string basis = BasisOf(run, capOn);
+        string? levels = run.LevelStart is { } ls && ls < capOn(run.Start, ls) ? LevelsOf(ls) : null;
         double mine = Rate(run);
         double? shown = RunPace.Early(run) ? null : mine;   // no rate under the rule (Rates): the page draws "—"
-        var same = Peers(run, history, farmed, levelCap);
+        var same = Peers(run, history, farmed, capOn);
         if (same.Count < RunPace.MinRuns) return new("none", null, null, same.Count, DefaultBand, shown, basis) { Levels = levels };
         var rates = same.Select(Rate).ToList();
         double usual = RouteAnalysis.Median(rates);

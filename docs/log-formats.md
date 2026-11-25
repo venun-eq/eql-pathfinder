@@ -167,3 +167,10 @@ What that means:
 - **Not checked yet:** another character on the same PC, the game crashing.
 
 Reading the game's memory instead was looked at and not done: [game-memory.md](game-memory.md).
+
+### A swap seen at login is a guess (login-swap, 11-25)
+
+At launch the newest slot file can be the slot of the run before (on 11-24 it was slot 4 while the player was on slot 3,
+16 s before "Welcome to EverQuest Legends!"). The engine (`Tracker.OnSwap`) holds the first swap from 2 min before to 30 s
+after a Welcome line as `State.PendingSwap`; a /who or a later swap row confirms it (a zone that shows another slot is a later swap row), and
+a ding at or below its slot's known level drops it. The stored row stays; only the reading changes.

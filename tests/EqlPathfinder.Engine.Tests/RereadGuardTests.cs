@@ -21,8 +21,8 @@ namespace EqlPathfinder.Engine.Tests;
 public class RereadGuardTests
 {
     // Raise the version and set its hash in the same commit, with the release note's `reread: true`.
-    private const int TrackerVersion = 16;
-    private const string TrackerHash = "d756d787f4c96062";
+    private const int TrackerVersion = 19;
+    private const string TrackerHash = "42c345631a8b85b0";
     private const int MeterVersion = 6;
     private const string MeterHash = "1c1bb6d1130c17e6";
 
@@ -124,6 +124,22 @@ public class RereadGuardTests
         ("12:51:00", "You have entered Toxxulia Forest."),
     ];
 
+    /// <summary>A crawl at 50 before 12-08 (farming at the cap) and the same after it (leveling: kills there add XP), made-up Standin lines.</summary>
+    private static readonly (string Day, string Hms, string Body)[] AroundKunark =
+    [
+        ("Sat Dec 05", "12:00:00", "You have gained a level! Welcome to level 50!"),
+        ("Sat Dec 05", "12:00:10", "You have entered Nektropos Castle 4 (Refined)."),
+        ("Sat Dec 05", "12:01:00", "You gain experience! (1.250%)"),
+        ("Sat Dec 05", "12:01:00", "You have slain a ghoul!"),
+        ("Sat Dec 05", "12:31:00", "You have entered Nektropos Castle."),
+        ("Wed Dec 09", "12:00:10", "You have entered Nektropos Castle 4 (Refined)."),
+        ("Wed Dec 09", "12:01:00", "You gain experience! (1.250%)"),
+        ("Wed Dec 09", "12:01:00", "You have slain a ghoul!"),
+        ("Wed Dec 09", "12:02:00", "You gain experience! (2.000%)"),
+        ("Wed Dec 09", "12:02:00", "You have slain a ghoul!"),
+        ("Wed Dec 09", "12:31:00", "You have entered Nektropos Castle."),
+    ];
+
     /// <summary>Everything the tracker hands the store, in the order it does, then the state it carries on from.</summary>
     private static List<string> TrackerRecords()
     {
@@ -134,10 +150,14 @@ public class RereadGuardTests
         // docs/log-formats.md "Kill XP"), so a change to how they're read moves the hash.
         foreach (var (hms, body) in AtTheCap) e.ProcessLine($"[Sun Nov 15 {hms} 2026] {body}");
         foreach (var (hms, body) in BackThroughTheOpenWorld) e.ProcessLine($"[Mon Nov 16 {hms} 2026] {body}");
+        // The cap is read by the day of play (kunark-cap): the same crawl at 50 on each side of Kunark's day, and the list's own (day, cap)
+        // pairs, so an entry added or moved without raising the version fails here.
+        foreach (var (day, hms, body) in AroundKunark) e.ProcessLine($"[{day} {hms} 2026] {body}");
         e.Flush();
         Assert.True(sink.Lines.Count(l => l.StartsWith("visit ")) >= 5, "the fixture's crawls weren't read");
         var state = JsonSerializer.SerializeToNode(e.State, Facts)!.AsObject();
         state.Remove(nameof(EngineState.Version));   // the version is held beside the hash, not inside it
+        foreach (var x in Expansions.All) sink.Lines.Add($"cap {x.From:O} {x.LevelCap}");
         sink.Lines.Add("state " + state.ToJsonString());
         return sink.Lines;
     }

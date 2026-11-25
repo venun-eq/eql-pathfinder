@@ -38,6 +38,8 @@ public sealed partial class TrackerService : IDisposable
     private bool _dirty;
     private DateTime _lastCommit = DateTime.MinValue;
     private volatile bool _importing;
+    /// <summary>The last history read threw or was cancelled: what it kept is part of the play (cleared when a read starts).</summary>
+    private volatile bool _importFailed;
     private double _importPercent;
     /// <summary>Raised whenever the log moves the tracker (new lines read), so a cache keyed on it can never serve what a visit was before.</summary>
     private int _revision;
@@ -58,6 +60,8 @@ public sealed partial class TrackerService : IDisposable
 
     /// <summary>The date every analysis is measured from: Ask's weights, the pace drift, "last crawl" freshness. Timers use the system clock.</summary>
     private DateTime Now => _time.GetLocalNow().DateTime;
+    /// <summary>The level cap today, on the player's own clock (docs/specs/kunark-cap.md): it changes at midnight with no new log line, so <see cref="SettingsKey"/> carries it.</summary>
+    private int CapNow => _options.CapOn(Now);
 
     public TrackerService(PathfinderStore store, CharacterLogs logs, TrackerOptions options, TimeProvider? time = null)
     {
@@ -135,7 +139,7 @@ public sealed partial class TrackerService : IDisposable
 
     /// <summary>Every setting a cached build reads (what a fragment is worth, the farmed difficulties, the farm rate, the cap, the idle gap). Changing one changes this, so it goes in every key.</summary>
     private string SettingsKey() =>
-        $"{_options.FragmentValue}|{string.Join(',', _options.FarmDifficulties.Order())}|{_options.FarmRateMode}|{_options.FarmRateManual}|{_options.LevelCap}|{_options.IdleThresholdSeconds}";
+        $"{_options.FragmentValue}|{string.Join(',', _options.FarmDifficulties.Order())}|{_options.FarmRateMode}|{_options.FarmRateManual}|{CapNow}|{_options.IdleThresholdSeconds}";
 
     /// <summary>
     /// Community numbers for this player with their own play excluded when sharing, avoiding double-counting in Ask.
@@ -163,6 +167,7 @@ public sealed partial class TrackerService : IDisposable
         await Task.Run(() =>
         {
             _importing = true;
+            _importFailed = true;   // until it completes
             var clock = Stopwatch.StartNew();
             try
             {
@@ -197,6 +202,7 @@ public sealed partial class TrackerService : IDisposable
                 SaveCheckpoint();
                 _importPercent = 100;
                 progress?.Report(100);
+                _importFailed = false;
                 UsageMetrics.Default.Import(clock.Elapsed.TotalSeconds, total / 1e6);
             }
             finally { _importing = false; _loadoutRowsChecked = false; }   // a swap kept during the read is taken by the next step
@@ -312,7 +318,7 @@ public sealed partial class TrackerService : IDisposable
                 changed = true;
             }
         }
-        _engine.ApplyQueued(DateTime.MaxValue);
+        _engine.ApplyQueued(Now);   // a login's swap row waits for its Welcome line; only Flush passes MaxValue
         if (_engine.State.LoadoutRow != rowBefore) { _revision++; _dirty = true; changed = true; }
         _engine.Tracker.Tick(Now);
         if (_dirty && (_batch.Count > 0 || (DateTime.Now - _lastCommit).TotalSeconds > 10)) SaveCheckpoint();

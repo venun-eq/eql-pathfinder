@@ -215,7 +215,7 @@ public class CacheKeysTests
         File.WriteAllLines(log, lines);
         try
         {
-            var o = new TrackerOptions { LevelCap = 50 };
+            var o = new TrackerOptions { Expansions = [new("Classic", DateTime.MinValue, 50)] };
             using var store = new PathfinderStore(Path.Combine(dir, "t.db"));
             using var svc = new TrackerService(store, new CharacterLogs("Venun", "oggok", log, [log]), o, new FixedClock(Now));
             await svc.ImportHistoryAsync();
@@ -223,7 +223,7 @@ public class CacheKeysTests
             var before = await svc.Query(s => s.Journeys());
             Assert.NotEmpty(before);
             Assert.All(before, j => Assert.False(j.Done));
-            o.LevelCap = 21;
+            o.Expansions = [new("Classic", DateTime.MinValue, 21)];
             Assert.Contains(await svc.Query(s => s.Journeys()), j => j.Done);
         }
         finally { try { Directory.Delete(dir, true); } catch (IOException) { } }

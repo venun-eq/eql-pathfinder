@@ -33,7 +33,7 @@ public static class RelevelPaces
 
     public static RelevelPaceResult Build(PlayFacts play, IReadOnlyList<Journey> journeys, TrackerOptions o)
     {
-        int cap = o.LevelCap;
+        // each crawl is below the cap of its own day
         var who = play.Pairs;
         var ordered = journeys.OrderBy(j => j.Start).ToList();
 
@@ -43,11 +43,10 @@ public static class RelevelPaces
         for (int ji = 0; ji < ordered.Count; ji++)
         {
             var j = ordered[ji];
-            double xm = Planner.XpMultiplier(j.Rank);
             var mine = new List<Visit>();
             foreach (var v in play.Visits)
             {
-                if (!v.Closed || v.Difficulty == null || v.LevelStart is not { } ls || ls >= cap) continue;
+                if (!v.Closed || v.Difficulty == null || v.LevelStart is not { } ls || ls >= o.CapOn(v)) continue;
                 if (v.Start < j.Start || v.Start > j.End) continue;
                 if (who.GetValueOrDefault(v.Id).Trio is not { } t || ClassNames.TrioKey(t) != j.TrioKey) continue;
                 mine.Add(v);
@@ -55,7 +54,7 @@ public static class RelevelPaces
                 if (st.ActiveMinutes < Samples.MinFitMinutes || st.LevelsPerHour is not { } stLvh) continue;
                 var (k, p) = play.Party(v.Id);
                 // Levels per hour at XP ×1.0, so relevels at different ranks compare.
-                rows.Add(new Row(ji, (v.BaseZone, v.Difficulty, (ls - 1) / 5), st.ActiveMinutes, stLvh * xm,
+                rows.Add(new Row(ji, (v.BaseZone, v.Difficulty, (ls - 1) / 5), st.ActiveMinutes, stLvh * j.XpAt(ls),
                     Rates.PerHour(v.Kills, st.ActiveMinutes) ?? 0, k > 0 ? (double)p / k : 0, v));
             }
             crawlsOf.Add(mine);
@@ -117,7 +116,7 @@ public static class RelevelPaces
     {
         var doneIdx = Enumerable.Range(0, ordered.Count).Where(i => ordered[i].Done).ToList();
         if (doneIdx.Count < 2) return [];
-        var model = Journeys.HoursPerLevel(doneIdx.SelectMany(i => crawlsOf[i]), o);
+        var model = Journeys.HoursPerLevel(doneIdx.SelectMany(i => crawlsOf[i]), o, doneIdx.Max(i => ordered[i].LevelNow));
         var detours = new List<RelevelDetour>();
         foreach (int i in doneIdx)
             foreach (var leg in ordered[i].Route)
@@ -126,7 +125,7 @@ public static class RelevelPaces
                 if (leg.LevelFrom is not { } a || leg.LevelTo is not { } b || b - a < 2) continue;
                 double usual = 0;
                 bool ok = true;
-                for (int L = a; L < b && L < o.LevelCap; L++) { if (double.IsNaN(model[L])) { ok = false; break; } usual += model[L]; }
+                for (int L = a; L < b && L < model.Length; L++) { if (double.IsNaN(model[L])) { ok = false; break; } usual += model[L]; }
                 if (!ok || usual <= 0) continue;
                 double extra = leg.ActiveMinutes / 60 - usual;
                 if (extra < 0.25) continue;

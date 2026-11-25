@@ -10,9 +10,8 @@ using EqlPathfinder.Engine.Tracking;
 namespace EqlPathfinder.Engine.Sharing;
 
 /// <summary>
-/// Schema 2 of what community sharing sends ("EQL Pathfinder: Sharing spec"): the facts each crawl is made of
-/// (every kill, reward, ding, death, damage per spell, loot), plus the numbers this app version works out from them
-/// (<c>derived</c>, re-sent when an update changes the math). No names: a salted code stands in for the character and
+/// What community sharing sends ("EQL Pathfinder: Sharing spec"): the facts each crawl is made of
+/// (every kill, reward, ding, death, damage per spell, loot) and nothing this app worked out from them. No names: a salted code stands in for the character and
 /// each row. No clock times: a day, an order (<c>seq</c>), and seconds from the start of the crawl or stretch.
 /// Phase 0 builds it for the Settings preview only; nothing is sent.
 /// </summary>
@@ -31,13 +30,13 @@ public sealed record ShareColumns(CompactRow Kills, CompactRow Rewards, CompactR
 /// <param name="Pauses">Schema 4: when you were out of the instance mid-visit, [from, to] in seconds from the start.</param>
 /// <param name="End">Schema 4: where the visit's active time ends (completion or the last straggler, else leaving), in seconds
 /// from the start. With <paramref name="Pauses"/> and the kill rows, the community job works out idle and active time itself
-/// (<see cref="Tracking.ActiveTime"/>) instead of taking <see cref="CrawlDerived"/> on trust.</param>
+/// (<see cref="Tracking.ActiveTime"/>) from the facts alone.</param>
 /// <param name="Bonus">True when played during a bonus-XP event (excluded by the community job); null otherwise.</param>
 public sealed record SharedCrawl(string Id, string Day, int Seq, string Kind, string Zone, int? Difficulty, string? Trio, bool TrioConfirmed,
     string TrioSource, string? Race,
     int Rank, int? LevelStart, int? LevelEnd, double ActiveSeconds, bool Completed, bool Refunded, double? ResetMinutes,
     IReadOnlyList<CompactRow> Kills, IReadOnlyList<CompactRow> Rewards, IReadOnlyList<CompactRow> Dings, IReadOnlyList<int> Deaths,
-    SharedDamage Damage, IReadOnlyDictionary<string, int> Casts, SharedLoot Loot, CrawlDerived Derived,
+    SharedDamage Damage, IReadOnlyDictionary<string, int> Casts, SharedLoot Loot,
     IReadOnlyList<int[]>? Pauses = null, int? End = null, bool? Bonus = null);
 
 /// <summary>Damage dealt by source and by spell or ability (names are the game's), and damage taken.</summary>
@@ -48,17 +47,12 @@ public sealed record SharedDamage(long Total, double FightSeconds, long Taken, I
 public sealed record SharedLoot(IReadOnlyDictionary<int, int> Motes, IReadOnlyDictionary<int, int> Fragments,
     IReadOnlyDictionary<int, int> ChestMotes, IReadOnlyDictionary<int, int> ChestFragments);
 
-/// <summary>What this app version works out from the facts. Re-sent after an update that changes the math.</summary>
-public sealed record CrawlDerived(double Levels, double KillLevels, double RewardLevels, double ActiveMinutes, double IdleMinutes);
-
 /// <param name="Trio">Active trio for the hunt (nearest closed visit within 6 hours, <see cref="Analysis.PlayFacts.TrioNear"/>).
 /// Null from older clients or when no visit is near; the community job then borrows from the same day's nearest crawl.</param>
 /// <param name="Rank">The trio's reincarnation rank then (null with <paramref name="Trio"/>).</param>
 /// <param name="Bonus">True when hunted during a bonus-XP event; null otherwise.</param>
-public sealed record SharedStretch(string Id, string Day, int Seq, string? Zone, IReadOnlyList<CompactRow> Kills, StretchDerived Derived,
+public sealed record SharedStretch(string Id, string Day, int Seq, string? Zone, IReadOnlyList<CompactRow> Kills,
     string? Trio = null, int? Rank = null, bool? Bonus = null);
-
-public sealed record StretchDerived(double Minutes, double Levels);
 
 /// <param name="Kind">"class" or "race".</param>
 public sealed record SharedReincarnation(string Id, string Day, int Seq, string Kind, string Name);
@@ -84,8 +78,8 @@ public sealed class CompactRowConverter : JsonConverter<CompactRow>
 
 public static class ShareBuilder
 {
-    /// <summary>Schema version (3 = spells &amp; trio source; 4 = pauses &amp; end time so the community job computes active time from facts). Bumping re-sends every unit.</summary>
-    public const int Schema = 4;
+    /// <summary>Schema version (3 = spells &amp; trio source; 4 = pauses &amp; end time so the community job computes active time from facts; 5 = no worked-out numbers sent). Bumping re-sends every unit.</summary>
+    public const int Schema = 5;
     public static readonly ShareColumns Columns = new(
         new("[\"t\",\"xp\",\"party\",\"secs\",\"level\"]"), new("[\"t\",\"share\",\"sizing\",\"estimated\",\"unknown\"]"), new("[\"t\",\"level\"]"));
 
@@ -102,7 +96,7 @@ public static class ShareBuilder
         bool After(DateTime t) => since == null || t >= since;
         var play = facts ?? PlayFacts.From(visits, s);
         var killsByVisit = kills.Where(k => k.VisitId != null).GroupBy(k => k.VisitId!).ToDictionary(g => g.Key, g => g.OrderBy(k => k.Time).ToList());
-        var field = FieldHunts.From(kills.Where(k => k.VisitId == null && After(k.Time)), o.LevelCap);
+        var field = FieldHunts.From(kills.Where(k => k.VisitId == null && After(k.Time)), o);
         // Play during a bonus-XP event goes marked ("bonus": true), so the community job can leave it out: a bonus makes a place
         // look faster than it is. Only marked units carry the field, so nothing else changes on the wire.
         bool? Bonus(DateTime from, DateTime to) => play.DuringBonus(from, to) ? true : null;
@@ -110,7 +104,7 @@ public static class ShareBuilder
 
         // One order for everything, in place of clock times.
         // Dungeon Crawls, and any other instance with a kill in it ("kind": "crawl" or "instance").
-        var crawlVisits = visits.Where(v => v.Closed && (v.Difficulty != null || v.Kills > 0) && !v.PlayedOnACapLoadout(o.LevelCap) && After(v.Start))
+        var crawlVisits = visits.Where(v => v.Closed && (v.Difficulty != null || v.Kills > 0) && !v.PlayedOnACapLoadout(o.CapOn(v)) && After(v.Start))
             .OrderBy(v => v.Start).ToList();
         var reincs = s.Roster.Classes.Values.SelectMany(i => i.Seen.Select(t => (Time: t, Kind: "class", i.Name)))
             .Concat(s.Roster.Races.Values.SelectMany(i => i.Seen.Select(t => (Time: t, Kind: "race", i.Name))))
@@ -148,18 +142,17 @@ public static class ShareBuilder
                     new SortedDictionary<string, long>(d.ByAbility, StringComparer.Ordinal)),
                 new SortedDictionary<string, int>(v.Casts, StringComparer.Ordinal),
                 new SharedLoot(Tiers(v.Loot.Motes), Tiers(v.Loot.Fragments), Tiers(v.Loot.ChestMotes), Tiers(v.Loot.ChestFragments)),
-                new CrawlDerived(R3(st.LevelsGained), R3(st.KillLevels), R3(st.RewardLevels), R2(st.ActiveMinutes), R2(st.IdleMinutes)),
                 v.Pauses.Select(p => new[] { T(p.From), T(p.To) }).ToList(), T(v.IdleEnd(v.EndTime)), Bonus(v.Start, v.EndTime)));
         }
 
         var stretches = new List<SharedStretch>();
         foreach (var f in field)
         {
-            var mine = openKills.Where(k => k.Time >= f.Start && k.Time <= f.End && k.Zone == f.Zone && k.Level is { } l && l < o.LevelCap);
+            var mine = openKills.Where(k => k.Time >= f.Start && k.Time <= f.End && k.Zone == f.Zone && k.Level is { } l && l < o.CapOn(k.Time, l));
             // Who was hunting: the same trio and rank the app's own Ask gives this hunt (docs/community-job.md, the open-world gap).
             var trio = play.TrioNear(f.Start);
             stretches.Add(new SharedStretch(Code($"stretch|{f.Start:O}"), Day(f.Start), order[$"f:{f.Start:O}"], f.Zone,
-                mine.Select(k => KillRow(k, (int)Math.Round((k.Time - f.Start).TotalSeconds))).ToList(), new StretchDerived(R2(f.Minutes), R3(f.Levels)),
+                mine.Select(k => KillRow(k, (int)Math.Round((k.Time - f.Start).TotalSeconds))).ToList(),
                 trio, trio != null ? play.RankAt(trio, f.Start) : null, Bonus(f.Start, f.End)));
         }
 

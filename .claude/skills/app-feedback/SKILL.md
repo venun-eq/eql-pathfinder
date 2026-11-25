@@ -52,8 +52,11 @@ for how to query.
    PowerShell 5.1's `>` would corrupt it), into the scratchpad, outside the repo:
 
    ```sh
+   set -a && . "$APPDATA/EQLPathfinder-dev/private.env" && set +a
    npx cf r2 objects get <shot> --bucket-name eqlpathfinder-feedback > <scratchpad>/report-<id>.png
    ```
+
+   The first line loads the private settings, which `cf` needs even for R2. Without it, the PNG comes out empty.
 
    Then read the PNG. It's the page at the player's own pixels (at 150% scaling, 1.5× the window's size), so a
    one-pixel layout problem shows as it did for them. Blocks (█) and grey bars are what the app hid (the character's
@@ -91,9 +94,15 @@ for how to query.
      Mark it `planned`. Reports not triaged yet wait in the Inbox there.
    - Ideas worth building go on the roadmap as `planned` (below).
 
-   Auto mode can refuse this write, because it changes production. If it does, the write is the user's: give
-   them the command to run from `server/` (`! npx cf d1 query <id> --sql "UPDATE …"`), and say in your summary
-   that the report still reads `new`.
+   Auto mode can refuse this write, because it changes production. If it does, the write is the user's. Give
+   them one line in bash, since the `!` prefix runs bash from the main checkout. The line goes into `server/`
+   (where `npx cf` is this project's) and loads the private settings itself:
+
+   ```sh
+   ! cd server && set -a && . "$APPDATA/EQLPathfinder-dev/private.env" && set +a && npx cf d1 query "$EQLP_D1_PRODUCTION" --sql "UPDATE …"
+   ```
+
+   It should answer `"changes": <n>`. Say in your summary that the report still reads `new` until they run it.
 
 ## Roadmap votes
 

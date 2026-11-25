@@ -93,6 +93,8 @@ function campName(p) {
 
 // ---- prices: what a change does (Campaign.cs CampaignDelta), runs first, then XP
 const campKey = k => k.slice(k.indexOf(":") + 1);
+/** The XP column title: the penalty as shown is to the old cap; the new levels (reinc.newLevels) need their usual XP. */
+const xpColTip = () => { const n = newLv(); return `XP to level: the bar is that much bigger. Mobs give the same XP.${n ? ` Levels 1 to ${n.from}: as shown; levels ${n.from + 1} to ${n.to}, new with ${n.expansion}: +0%.` : ""}`; };
 const campXp = x => `${x > 0 ? "+" : "−"}${fmt(Math.abs(x) * 100, 0)}% XP`;
 /** "+1 run", "1 run fewer", "+10% XP" (one run's bar 10% bigger, over the whole plan), "same XP"; and classes sooner or later. */
 function campCost(d) {
@@ -261,7 +263,7 @@ function campGoalsCard(v, p, busy, planned) {
 
 // ---- the plan: where you are in it, and whether it's the cheapest way
 /** "32 / 50 · ≈ 6.2 h to go", or "1 / 50 · not played yet": a leveling run's level out of the cap, and Home's hours for it. */
-const campLevelBits = x => `<span class="num">${x.level} / ${cap()}</span>${x.etaHours != null ? ` · <span class="num gold">≈&nbsp;${fmt(x.etaHours)}&nbsp;h&nbsp;to&nbsp;go</span>` : x.crawls === 0 ? ` · <span class="dim nw">not played yet</span>` : ""}`;
+const campLevelBits = x => `<span class="num">${x.level} / ${cap()}</span>${x.etaHours != null ? ` · <span class="num gold">≈&nbsp;${fmt(x.etaHours)}&nbsp;h&nbsp;${etaWords(x).replace(" ", "&nbsp;")}</span>` : x.crawls === 0 ? ` · <span class="dim nw">not played yet</span>` : ""}`;
 /** Run numbers as "7, 9–10". */
 function campNums(ns) {
   const out = [];
@@ -389,7 +391,7 @@ function campLine(v, L, loadouts) {
   const note = toPlay && row?.warnings?.length ? `<div class="rnote">${row.warnings.map(esc).join(" ")}</div>` : "";
   return `<div class="rline${isNext ? " next" : ""}${pinned ? " pinned" : ""}${L.g === "played" ? " played" : ""}">
       <span class="ln num" title="${nums.length > 1 ? "Its runs" : "Its place"} in your campaign">${campRunsText(nums)}</span>${cells}
-      <span class="st">${status}</span><span class="lxp num" title="XP to level: the bar is that much bigger. Mobs give the same XP.">${xp}</span>${acts}${note}
+      <span class="st">${status}</span><span class="lxp num" title="${esc(xpColTip())}">${xp}</span>${acts}${note}
       ${open ? campSwapPanel(i, l, earns()) : ""}</div>`;
 }
 

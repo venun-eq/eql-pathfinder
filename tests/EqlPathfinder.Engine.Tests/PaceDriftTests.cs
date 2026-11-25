@@ -66,3 +66,35 @@ public class PaceDriftTests
         Assert.Equal(1 / PaceDrift.MaxScale, d.Scale(Now.AddDays(-400), Now), 6);
     }
 }
+
+/// <summary>Play at 50 after Kunark's launch is leveling (cap 55): the drift and Ask's difficulty compare take it; at the old cap it is farming and they leave it.</summary>
+public class PaceDriftAtTheOldCapTests
+{
+    private static readonly DateTime Now = new(2026, 12, 20, 12, 0, 0);
+
+    private static LevelingSegment At50(string zone, double minutesPerLevel, DateTime start, int cap, int difficulty = 4) =>
+        new($"{zone} D{difficulty}", zone, difficulty, start, 50, minutesPerLevel * 2, 2, 0, 0, 0, 40, 0, 200) { Cap = cap };
+
+    private static List<LevelingSegment> Played(int cap) =>
+        Enumerable.Range(0, 7).SelectMany(i => new[]
+        {
+            At50($"Zone{i}", 20, Now.AddDays(-60), cap),
+            At50($"Zone{i}", 10 * Math.Sqrt(2), Now.AddDays(-30), cap),
+            At50($"Zone{i}", 10, Now.AddDays(-1), cap),
+            At50($"Zone{i}", 12, Now.AddDays(-2), cap, 2),
+        }).ToList();
+
+    [Fact]
+    public void LevelingAt50AfterTheCapRoseCountsInThePaceDriftAndAtTheOldCapItDoesNot()
+    {
+        Assert.Null(PaceDrift.From(Played(50)));
+        Assert.NotNull(PaceDrift.From(Played(55)));
+    }
+
+    [Fact]
+    public void LevelingAt50AfterTheCapRoseIsComparedByDifficultyAndAtTheOldCapItIsNot()
+    {
+        Assert.Empty(AskData.From(Played(50), Now.AddDays(-90), Now).Difficulties);
+        Assert.NotEmpty(AskData.From(Played(55), Now.AddDays(-90), Now).Difficulties);
+    }
+}

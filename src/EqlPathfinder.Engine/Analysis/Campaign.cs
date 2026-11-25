@@ -300,7 +300,7 @@ public static partial class Campaign
         if (item.Open == null)
             return new CampaignRun(n + 1, item.LoadoutIndex, race, classes, "done", rank, 0, gains, past, Round: RoundOf(gains), At: item.At);
         return new CampaignRun(n + 1, item.LoadoutIndex, race, classes, "leveling", rank, rank > 0 ? Planner.XpMultiplier(rank) : 0, gains, past,
-            item.Open.Level, item.Open.Journey?.EtaHours, item.Open.Journey?.Crawls ?? 0, RoundOf(gains), item.At);
+            item.Open.Level, item.Open.Journey?.EtaHours, item.Open.Journey?.Crawls ?? 0, RoundOf(gains), item.At, item.Open.Journey?.EtaTo);
     }
 
     private static CampaignRun EvaluatePlannedRun(CampaignLoadout l, int number, int loadoutIndex, bool afterFirst,

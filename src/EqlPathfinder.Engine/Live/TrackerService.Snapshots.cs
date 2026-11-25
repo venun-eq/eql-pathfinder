@@ -50,7 +50,7 @@ public sealed partial class TrackerService
         double farmRate = FarmRateNow();
         var history = AllVisits().Where(v => v.Closed).ToList();
         var cur = s.Current;
-        bool farming = IsFarmingMode(s.Level, o.LevelCap);
+        bool farming = IsFarmingMode(s.Level, CapNow);
 
         VisitStats? curStats = cur != null ? VisitStats.From(cur, eff, o, isCurrent: true) : null;
         double? cost = curStats is { LevelsPerHour: { } clv, T5PerHour: { } ct5 } && !farming
@@ -59,12 +59,13 @@ public sealed partial class TrackerService
 
         double? levelPct = s.LevelPositionKnown ? Math.Min(100, s.KillPercentInLevel) : null;
         double? nextLevelMin = EstimateNextLevelMinutes(farming, levelPct, curStats, pace);
-        var jv = BuildActiveJourneyView(s, o.LevelCap);
+        var jv = BuildActiveJourneyView(s, CapNow);
         var next = CachedNextStep(history, cur, farming, farmRate, s, now);
 
         var chain = new List<Visit>(history.TakeLast(60));
         if (cur != null) chain.Add(cur);
-        var session = SessionStats.CurrentSession(chain);
+        // At the cap the session is farming: a relevel crawl in the same place just before it (started below the cap) is not part of it.
+        var session = SessionStats.CurrentSession(chain, 30, s.Level is { } sl && sl >= CapNow ? v => v.LevelStart is not { } ls || ls >= o.CapOn(v.Start, ls) : null);
         var sessionDrops = session.SelectMany(v => v.HighTier).OrderByDescending(d => d.Time).ToList();
         var recent = history.AsEnumerable().Reverse().Take(6).Select(v => VisitStats.From(v, eff, o)).ToList();
 
@@ -145,18 +146,17 @@ public sealed partial class TrackerService
         // Where next comes from Ask's tables (instances: the overlay is between crawls), so the overlay, Home and the Ask page
         // give one answer: older visits fade, pre-nerf DDD is left out, levels are for the XP your trio needs.
         var d = Analysis.AskData.From(LevelingSegment.Filter(AskSegments().Segments, "instances", null), RouteAnalysis.FarmPatch, Now, onlyWithRate: true);
-        int rank = (s.Trio?.Split('/') ?? []).Select(c => s.Roster.Classes.GetValueOrDefault(c)?.Rank ?? 0).DefaultIfEmpty(0).Max();
-        double xp = Planner.XpMultiplier(rank);
+        Xp xp = Xp.Of(L => s.Roster.TrioRankAt(s.Trio?.Split('/'), L, _options.BaseCap));
 
         if (farming)
         {
-            choices = NextRanking.Farms(d, o.LevelCap, xp, lastLabel);
+            choices = NextRanking.Farms(d, CapNow, xp.At(CapNow), lastLabel);
             return BuildStep();
         }
-        if (s.Level is not { } level || level >= o.LevelCap) return BuildStep();
+        if (s.Level is not { } level || level >= CapNow) return BuildStep();
         // What the player is doing ranks the next place: the last visit played for motes ranks by cost against farming, else by speed.
         bool motes = judged != null ? VisitKinds.ByMotes(judged.Kind) : last != null && last.Difficulty is { } lastDiff && o.FarmDifficulties.Contains(lastDiff);
-        choices = NextRanking.Leveling(d, level, o.LevelCap, motes, FarmRateNow(), xp, lastLabel);
+        choices = NextRanking.Leveling(d, level, CapNow, motes, FarmRateNow(), xp, lastLabel);
         return BuildStep();
     }
 
@@ -167,7 +167,7 @@ public sealed partial class TrackerService
     {
         var o = _options;
         var history = AllVisits().Where(v => v.Closed).ToList();
-        var v = history.LastOrDefault(x => RouteAnalysis.Usable(x, o.LevelCap) && (farming ? x.LevelStart >= o.LevelCap : x.LevelStart < o.LevelCap) && (before == null || x.Start <= before));
+        var v = history.LastOrDefault(x => RouteAnalysis.Usable(x, o.CapOn(x)) && (farming ? x.LevelStart >= o.CapOn(x) : x.LevelStart < o.CapOn(x)) && (before == null || x.Start <= before));
         var snap = BuildSnapshot();
         double farmRate = FarmRateNow();
         if (v == null) return snap;
@@ -210,9 +210,9 @@ public sealed partial class TrackerService
             // The live crawl (or one the DDD rule leaves out of Ask): judged from its stats now.
             var facts = Facts();
             var trio = facts.Trio(v.Id).Trio;
-            run = LevelingSegment.From(st, facts.RankAt(trio, v.Start), facts.PartyShare(v.Id)) with { Trio = trio };
+            run = LevelingSegment.From(st, facts.RankAt(trio, v.Start), facts.PartyShare(v.Id)) with { Trio = trio, RankAtLevel = facts.RankByLevel(trio, v.Start, _options), Cap = _options.CapOn(v) };
         }
-        return Verdicts.Judge(run, instances, byPlace.GetValueOrDefault(run.Place) ?? [], _options.FarmDifficulties, _options.LevelCap,
+        return Verdicts.Judge(run, instances, byPlace.GetValueOrDefault(run.Place) ?? [], _options.FarmDifficulties, _options,
             grouped => CommunityForYou()?.For("instances", grouped ? "group" : "solo"));
     }
 
@@ -223,7 +223,7 @@ public sealed partial class TrackerService
         string farmKey = SettingsKey();
         if (ReferenceEquals(_judged.Segments, segs) && _judged.Map != null && _judged.FarmKey == farmKey) return _judged.Map;
         var (instances, _, byPlace) = PaceData();
-        var map = Verdicts.JudgeAll(segs, instances, byPlace, _options.FarmDifficulties, _options.LevelCap);
+        var map = Verdicts.JudgeAll(segs, instances, byPlace, _options.FarmDifficulties, _options);
         _judged = (segs, map, farmKey);
         return map;
     }

@@ -38,7 +38,9 @@ public sealed class PathfinderEngine
             SkipThrough = null;
         }
         Lines++;
+        if (line.Body.StartsWith("Welcome to EverQuest Legends!", StringComparison.Ordinal)) Tracker.NoteLogin(line.Time);   // before the queued swap it dates (login-swap)
         ApplyQueued(line.Time);
+        _lastLine = line.Time;
         Tracker.OnLine(line.Time);
         var e = Parser.Parse(line);
         if (e == null) return;
@@ -68,12 +70,27 @@ public sealed class PathfinderEngine
         _queued.Insert(at + 1, (row, e));
     }
 
+    private DateTime? _lastLine;
+    private LogEvent? _gapChecked;
+    private bool _gapBefore;
+
+    /// <summary>
+    /// A swap after a silence in the log, with no login line read yet, waits up to 30 s for one: the game's startup lines
+    /// come before "Welcome to EverQuest Legends!", and the swap then counts as the login's guess (login-swap).
+    /// </summary>
+    private bool MaybeLogin(LoadoutSwapped sw, DateTime until)
+    {
+        if (_gapChecked != sw) { _gapChecked = sw; _gapBefore = _lastLine is not { } last || last < sw.Time.AddSeconds(-60); }
+        return _gapBefore && until < sw.Time.AddSeconds(30) && !(State.LoginAt is { } la && la >= sw.Time.AddMinutes(-2));
+    }
+
     /// <summary>Takes the queued events up to <paramref name="until"/>.</summary>
     public void ApplyQueued(DateTime until)
     {
         while (_queued.Count > 0 && _queued[0].Event.Time <= until)
         {
             var (row, e) = _queued[0];
+            if (e is LoadoutSwapped sw && MaybeLogin(sw, until)) break;
             _queued.RemoveAt(0);
             Tracker.Apply(e);
             State.LoadoutRow = Math.Max(State.LoadoutRow, row);

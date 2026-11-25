@@ -36,7 +36,7 @@ function renderSettings() {
       <div class="setrow"><div><div>Closing the window</div><div class="dim" style="font-size: 12px">Pathfinder keeps tracking in the tray. Exit from the tray menu.</div></div></div>
     </section>
     <section class="card"><div class="h">Counting</div>
-      <div class="setrow"><div><div>What's a fragment worth?${infoTip("fragment")}</div><div class="dim" style="font-size: 12px">Not sure? Keep Recommended: take gear to +9 with motes and fragments, and save Void-Touched
+      <div class="setrow" id="fragmentSetting"><div><div>What's a fragment worth?${infoTip("fragment")}</div><div class="dim" style="font-size: 12px">Not sure? Keep Recommended: take gear to +9 with motes and fragments, and save Void-Touched
         Potentials for +9 → +10, the costliest tier. It values fragments the way Upgrades spends them. If you take gear higher or lower with motes, pick that instead. Used on Loot, Ask, Home and the drop banner.</div></div>
         <select data-setting-select="fragmentValue" aria-label="How high you take mote-fed gear">${frags.map(([v, t]) => `<option value="${v}"${fragOn(v) ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></div>
       <div id="farmRateSetting">
@@ -135,7 +135,7 @@ function overlaysCard(s) {
       <div class="setrow"><div><div>Arrange the overlays</div><div class="dim" style="font-size: 12px">Every overlay that's on shows, unlocked and named, game running or not, so you can drag them where you want them.</div></div>
         <button class="btn${s.arranging ? " primary" : ""}" data-setting="arrangeOverlays" data-bool="${!s.arranging}">${s.arranging ? "Done arranging" : "Arrange"}</button></div>
       ${(s.overlays ?? []).map(o => `
-        <div class="lbl" style="margin-top: 14px">${esc(o.name)}</div>
+        <div${o.id === "meter" ? ' id="meterSettings"' : ""}><div class="lbl" style="margin-top: 14px">${esc(o.name)}</div>
         ${sw(`overlay.${o.id}.visible`, o.visible, `Show the ${esc(o.name.toLowerCase())}`, esc(o.about))}
         ${o.visible ? `${sw(`overlay.${o.id}.locked`, o.locked, "Lock it", "Clicks pass through to the game.")}
           ${seg(`overlay.${o.id}.opacity`, nearest(o.opacity), OVERLAY_BG.map(([v, t]) => [String(v), t]), "Background", "The text stays solid.")}
@@ -144,6 +144,6 @@ function overlaysCard(s) {
           ${o.id === "meter" ? seg("overlay.meter.clock", o.options.clock ?? "active", [["active", "Active time"], ["kill", "Kill time"]], "DPS counts",
             "Active time: only the seconds you were fighting. Kill time: first swing to the death, feigns and waits included. The other one shows under the bars; click it there to swap.") : ""}
           ${o.id === "meter" ? seg("overlay.meter.fightEnd", nearestEnd(o.options.fightEnd), FIGHT_END.map(v => [v, `${v} s`]), "A fight ends",
-            "After a mob that hasn't died goes this long with nothing hitting it or you; another one with the same name after that is a new fight. Below 5 s a pause mid-fight (a DoT ticks every 6) starts cutting kills in two.") : ""}` : ""}`).join("")}
+            "After a mob that hasn't died goes this long with nothing hitting it or you; another one with the same name after that is a new fight. Below 5 s a pause mid-fight (a DoT ticks every 6) starts cutting kills in two.") : ""}` : ""}</div>`).join("")}
     </section>`;
 }

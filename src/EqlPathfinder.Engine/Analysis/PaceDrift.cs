@@ -30,7 +30,7 @@ public sealed record PaceDrift(double PerDay, int Cells, int Visits)
     /// <summary>The drift in these visits, or null without enough evidence.</summary>
     public static PaceDrift? From(IEnumerable<LevelingSegment> visits)
     {
-        var rows = visits.Where(v => v.Type != "open world" && v.LevelStart is >= 1 and < 50 && v.Levels >= 0.5 && v.ActiveMinutes >= Samples.MinFitMinutes)
+        var rows = visits.Where(v => v.Type != "open world" && v.LevelStart >= 1 && v.LevelStart < (v.Cap ?? Expansions.All[0].LevelCap) && v.Levels >= 0.5 && v.ActiveMinutes >= Samples.MinFitMinutes)
             .Select(v => (Cell: $"{v.Place}|{(v.LevelStart!.Value - 1) / 3}", Y: Math.Log(v.ActiveMinutes / v.Levels / v.XpMultiplier),
                 Day: (v.Start - DateTime.UnixEpoch).TotalDays))
             .GroupBy(r => r.Cell).Where(g => g.Count() >= 2 && g.Max(r => r.Day) - g.Min(r => r.Day) >= 7).ToList();

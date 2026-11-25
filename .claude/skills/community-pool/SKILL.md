@@ -47,13 +47,5 @@ A change to what the numbers are made from (`Engine/Community`, `AskData`, `Shar
 in its release note. `ship.ps1` then publishes the new build to the NAS (keeping the previous one in `eqlp-prev`) and
 runs it once. Changing the rules (config) or sharing itself needs the user's OK.
 
-The job works levels and active time out from the shared facts, not from what the app sent (docs/community-job.md,
-"Facts in, nothing baked in"). After changing either side's math, check they still agree on a real history:
-
-```sh
-cp "$LOCALAPPDATA/EQL Pathfinder/pathfinder.db" <scratchpad>/copy.db
-dotnet run --project src/EqlPathfinder.Cli -- status --db <scratchpad>/copy.db --facts-check
-```
-
-It prints how many crawls and hunts agree and lists any that don't. Point `--db` at a copy, as above: the tool writes
-to it.
+The job works levels and active time out from the shared facts, and the app sends nothing it worked out itself
+(docs/community-job.md, "Facts in, nothing baked in"), so there is nothing to cross-check.

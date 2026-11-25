@@ -46,7 +46,10 @@ Check every screen as each of these. Most design mistakes so far were right for 
 9. **A choice shows that it's chosen, and a click shows its result at once.** A goal the plan already met looked
    the same as no goal. While an answer is on its way, keep what was there, faded. Never blank the page.
 10. **The XP penalty is more XP to level, never less XP per kill.** The bar is bigger and a kill gives what it
-    always did. "+40% XP to level", never "XP ×1.4".
+    always did. "+40% XP to level", never "XP ×1.4". The penalty is by level: a level needs it only for the
+    reincarnations made after the class or race reached that level, so a new cap's levels need their usual XP at
+    first (the user, 11-24: "Level 51-55 however, levels I've never done before, have 0% penalty"). Show the penalty
+    of the level the player is at, and say when it changes along the way.
 11. **Pick from what's shown before reaching for drop-downs.** The loadout builder was "a lot of drop downs".
     Goals first, then a picker for hand edits.
 12. **Nothing touches.** The spin arrows sat against the number in Your motes. Controls get room, and a box whose

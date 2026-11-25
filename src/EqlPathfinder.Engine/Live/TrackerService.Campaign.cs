@@ -49,7 +49,7 @@ public sealed partial class TrackerService
         var (cr, rr) = Ranks();
         var (quality, tie, carries) = TieBreak(journeys, roles);
         var events = Campaign.Events(_engine.State.Roster);
-        var relevels = Relevels.Of(_engine.State.Roster, journeys, _options.LevelCap);
+        var relevels = Relevels.Of(_engine.State.Roster, journeys, CapNow, t => _options.CapOn(t));
         // The presets only change with your ranks and what you prefer between equal loadouts: build them again only then.
         string key = string.Join(",", cr.Values) + "|" + string.Join(",", rr.Values) + tie + "|" + string.Join(",", plan.Locked) + "|" + string.Join(",", (plan.ClassOrder ?? []).Select(w => w.Key + (w.UnlockNow ? "!" : ""))) + "|" + string.Join(",", (plan.RaceOrder ?? []).Select(w => w.Key)) + PinKey(plan, events);
         if (_presetCache?.Key != key) _presetCache = (key, Campaign.Presets(cr, rr, quality, plan, events, relevels, plan));
@@ -87,7 +87,7 @@ public sealed partial class TrackerService
         var (cr, rr) = Ranks();
         var journeys = Journeys();
         var (quality, _, _) = TieBreak(journeys, roles);
-        var relevels = Relevels.Of(_engine.State.Roster, journeys, _options.LevelCap);
+        var relevels = Relevels.Of(_engine.State.Roster, journeys, CapNow, t => _options.CapOn(t));
         return Campaign.ComboPrice(plan, combo, cr, rr, Campaign.Events(_engine.State.Roster), quality, index, relevels);
     }
 

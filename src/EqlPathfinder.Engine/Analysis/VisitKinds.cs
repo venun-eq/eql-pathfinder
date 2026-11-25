@@ -12,11 +12,16 @@ public static class VisitKinds
     /// <summary>D3 and D4 until the player says otherwise (Settings → How you play).</summary>
     public static readonly IReadOnlyList<int> DefaultFarmed = [3, 4];
 
-    public static string Of(LevelingSegment s, IReadOnlyCollection<int> farmed, int levelCap)
+    public static string Of(LevelingSegment s, IReadOnlyCollection<int> farmed, int levelCap) => Of(s, farmed, (_, _) => levelCap);
+
+    /// <summary>The same, with the cap of the day the visit was played (<see cref="TrackerOptions.CapOn(DateTime, int?)"/>).</summary>
+    public static string Of(LevelingSegment s, IReadOnlyCollection<int> farmed, Tracking.TrackerOptions o) => Of(s, farmed, o.CapOn);
+
+    internal static string Of(LevelingSegment s, IReadOnlyCollection<int> farmed, Func<DateTime, int?, int> capOn)
     {
         if (s.Raid) return Raid;
         if (s.Grouped) return Grouped;
-        if (s.LevelStart is { } l && l >= levelCap) return Farming;
+        if (s.LevelStart is { } l && l >= capOn(s.Start, l)) return Farming;
         if (s.Difficulty is { } d && farmed.Contains(d)) return Farming;
         // The log says a crawl ended only by "completed": an instance that ended without it was given up or respawning.
         if (s.Type != "open world" && s.Ended && !s.Completed) return Farming;

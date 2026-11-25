@@ -271,7 +271,7 @@ public partial class App
     {
         var log = new List<string>();
         void Note(string what) => log.Add($"{DateTime.Now:HH:mm:ss.fff} {what}: enabled={_settings.ShareEnabled} busy={_sharing?.Busy} pending={_sharing?.Pending} " +
-            $"error={_sharing?.Error} notice={_sharing?.Notice} server={JsonSerializer.Serialize(_sharing?.Server?.Counts)}");
+            $"error={_sharing?.Error} notice={_sharing?.Notice} server={JsonSerializer.Serialize(_sharing?.Server?.Counts)} withdrawal={_sharing?.Withdrawal}");
         static async Task Until(Func<bool> done, int seconds)
         {
             for (int i = 0; i < seconds * 4 && !done(); i++) await Task.Delay(250);
@@ -285,8 +285,15 @@ public partial class App
             await Until(() => _settings.ShareEnabled && _sharing.Server != null && !_sharing.Busy || _sharing.Error != null, 300);
             Note("after first sync");
             var first = _sharing.Server?.Counts.Values.Sum() ?? 0;
+            // One id the build doesn't hold goes into the copy's ledger, so the second sync has something to withdraw.
+            const string stale = "deadbeefdeadbeefdeadbeefdeadbeef";
+            var ledger = ShareLedger.Load(_settings.SharePlayer);
+            var character = ledger.Characters.Keys.FirstOrDefault();
+            if (character != null) { ledger.For(character)[stale] = "stale"; ledger.Save(); }
+            log.Add($"stale id {stale} put in the ledger for {character}");
             await _sharing.SyncAsync();
             Note("after second sync");
+            log.Add($"ledger still holds the stale id after the second sync: {character != null && ShareLedger.Load(_settings.SharePlayer).For(character).ContainsKey(stale)}");
             using var link = JsonDocument.Parse("{\"action\":\"link\"}");
             _sharing.Handle(link.RootElement);
             await Until(() => _sharing.LinkCode != null || _sharing.Error != null, 30);

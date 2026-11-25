@@ -183,7 +183,7 @@ public class RunPaceTests
             Enumerable.Range(0, 20).Select(i => new CompactRow($"[{i},5,0,8,10]")).ToList(), [], [], [],
             new SharedDamage(360000, 1800, 0, new Dictionary<string, long>(), new Dictionary<string, long> { ["Fireball"] = 360000 }),
             new Dictionary<string, int>(), new SharedLoot(new Dictionary<int, int>(), new Dictionary<int, int>(), new Dictionary<int, int>(), new Dictionary<int, int>()),
-            new CrawlDerived(1, 1, 0, 30, 0));
+            End: 0);
         var crawls = Enumerable.Range(0, players).SelectMany(p => Enumerable.Range(0, 2).Select(_ => new PlayerCrawl("p" + p, Crawl()))).ToList();
         var file = CommunityBuilder.Build(crawls, new CommunityRules(MinPlayers: 2, MinCrawls: 3), new DateTime(2026, 11, 16, 12, 0, 0));
         return CommunityData.Parse(JsonSerializer.Serialize(file, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }))!.For(null, null)!;

@@ -35,6 +35,13 @@ public sealed record Journey(
     IReadOnlyList<CurvePoint> Curve, IReadOnlyList<CurvePoint>? Projection = null, double FieldHours = 0, double FieldLevels = 0,
     double InstanceHours = 0, double InstanceLevels = 0)
 {
+    /// <summary>The count at the bar of a level during this relevel (<see cref="Incarnation.RankAt"/>); null: <see cref="Rank"/> at every level.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Func<int, int>? RankAtLevel { get; init; }
+    /// <summary>The level the hours to go reach (<see cref="EtaHours"/>): the highest level a finished relevel reached, where the model of hours ends. Null with no hours.</summary>
+    public int? EtaTo { get; init; }
+    public double XpAt(int level) => Planner.XpMultiplier(RankAtLevel?.Invoke(level) ?? Rank);
+
     /// <summary>"D4", or "mixed": what Home compares this relevel with (<see cref="DifficultyMix"/>).</summary>
     public string? Mostly => DifficultyMix.Of(this);
 
@@ -95,10 +102,13 @@ public static class Journeys
             var incs = classes.Select(c => roster.Classes[c]).ToList();
             var since = g.Since;
             var list = new List<Visit>();
+            // Classes that all reached the cap of their day left the relevel then: later visits are play past it.
+            DateTime? reached = incs.All(i => i.ReachedCap != null) ? incs.Max(i => i.ReachedCap) : null;
             foreach (var v in g.Visits.OrderBy(v => v.Start))
             {
+                if (reached is { } rc0 && v.Start > rc0) break;
                 list.Add(v);
-                if (v.LevelEnd >= o.LevelCap) break;
+                if (v.LevelEnd is { } le && le >= o.CapOn(v.Start, le)) break;   // the cap of that visit's day: done at 50 stays done
             }
             if (list.Count == 0) continue;
 
@@ -117,12 +127,19 @@ public static class Journeys
             int from = list.Where(v => v.LevelStart != null).Select(v => v.LevelStart!.Value)
                 .Concat(hunts.Where(f => f.Level != null).Select(f => f.Level!.Value)).DefaultIfEmpty(1).Min();
             // Exclude loadouts already at the cap swapped in to raid or farm (not an active relevel).
-            if (from >= o.LevelCap) continue;
-            // A class that has reincarnated again since left this relevel at the cap (reincarnating needs it).
-            int ClassLevel(Incarnation i) => Times(i).Any(t => t > since.AddSeconds(30)) ? o.LevelCap : i.Level ?? 0;
+            if (from >= o.CapOn(list[0].Start, from)) continue;
+            // A class that has reincarnated again since left this relevel at the cap of that day (reincarnating needs it); one that
+            // reached the cap of its day is there for good, whatever the cap is now.
+            int? ClassCap(Incarnation i) => Times(i).Where(t => t > since.AddSeconds(30)).Select(t => (int?)o.CapOn(t)).Max()
+                ?? (i.ReachedCap is { } rc ? o.CapOn(rc) : i.Level is { } il && il >= o.CapOn(i.LastActive ?? since, il) ? o.CapOn(i.LastActive ?? since, il) : null);
+            int ClassLevel(Incarnation i) => ClassCap(i) ?? i.Level ?? 0;
             int now = Math.Max(list.Where(v => v.LevelEnd != null).Select(v => v.LevelEnd!.Value).DefaultIfEmpty(from).Max(),
                 incs.Select(ClassLevel).DefaultIfEmpty(0).Min());
-            bool done = now >= o.LevelCap;
+            // Done: a visit ended at or above the cap of its own day, or every class is at the cap of its day. Later play never reopens it.
+            int? doneAt = list.Where(v => v.LevelEnd is { } e && e >= o.CapOn(v.Start, e)).Select(v => (int?)o.CapOn(v.Start, v.LevelEnd)).FirstOrDefault();
+            if (doneAt == null && incs.All(i => ClassCap(i) != null)) doneAt = incs.Max(i => ClassCap(i));
+            bool done = doneAt != null;
+            int capNow = doneAt ?? Math.Min(now, o.MaxCap);
             // Use the trio's reincarnation rank at the time of play (highest class rank in the trio, not the race).
             int rank = incs.Max(i => RankAt(i, since));
             var trioDisplay = list.Select(v => who[v.Id].Trio).Last(t => t != null)!;
@@ -133,14 +150,16 @@ public static class Journeys
             var start = hunts.Count > 0 && hunts[0].Start < list[0].Start ? hunts[0].Start : list[0].Start;
             var end = hunts.Count > 0 && hunts[^1].End > list[^1].EndTime ? hunts[^1].End : list[^1].EndTime;
             built.Add((new Journey(
-                trioDisplay, g.Key, race, since, start, end, from, Math.Min(now, o.LevelCap), done,
+                trioDisplay, g.Key, race, since, start, end, from, capNow, done,
                 (stats.Sum(s => s.ActiveMinutes) + fieldMin) / 60, (end - start).TotalHours, list.Count(v => v.Difficulty != null),
                 list.Sum(v => v.Kills) + hunts.Sum(f => f.Kills), list.Sum(v => v.Deaths), stats.Sum(s => s.T5), stats.Sum(s => s.LevelsGained) + fieldLv, rank,
-                Legs(list, stats, hunts), null, null, null, Curve(list, stats, hunts, from, Math.Min(now, o.LevelCap), done, o),
-                null, fieldMin / 60, fieldLv, instMin / 60, instLv), list));
+                Legs(list, stats, hunts), null, null, null, Curve(list, stats, hunts, from, capNow, done, o),
+                null, fieldMin / 60, fieldLv, instMin / 60, instLv)
+            { RankAtLevel = L => roster.TrioRankAt(classes, L, o.BaseCap, since) }, list));
         }
         // Estimate the rest of the way for trios still leveling, from the finished ones.
-        var model = HoursPerLevel(built.Where(b => b.j.Done).SelectMany(b => b.visits), o);
+        var finishedJourneys = built.Where(b => b.j.Done).ToList();
+        var model = HoursPerLevel(finishedJourneys.SelectMany(b => b.visits), o, finishedJourneys.Select(b => b.j.LevelNow).DefaultIfEmpty(0).Max());
         var result = built.Select(b => b.j.Done ? b.j : WithEta(b.j, model, o)).Select(j => j with { Farmed = DifficultyMix.Farmed(j, o.FarmDifficulties) }).ToList();
         result = WithTypicals(result);
         return result.OrderByDescending(j => j.Start).ToList();
@@ -245,10 +264,10 @@ public static class Journeys
         {
             h += seg.Minutes / 60;
             if (seg.Level is { } ls)
-                pts.Add(new(Math.Round(h, 3), Math.Round(Math.Max(pts[^1].Level, Math.Min(o.LevelCap, ls + seg.Gained)), 2)));
+                pts.Add(new(Math.Round(h, 3), Math.Round(Math.Max(pts[^1].Level, Math.Min(o.CapOn(seg.Time, ls), ls + seg.Gained)), 2)));
         }
         // A level can ding outside an instance (the last one of a relevel often does): the curve reaches it.
-        int reached = done ? o.LevelCap : now;
+        int reached = now;
         if (pts[^1].Level < reached) pts.Add(new(Math.Round(h, 3), reached));
         return pts;
     }
@@ -286,40 +305,50 @@ public static class Journeys
     }
 
     /// <summary>A visit that belongs in a relevel: a crawl or instance with kills, excluding cap-loadout play.</summary>
-    private static bool Counts(Visit v, TrackerOptions o) => (v.Difficulty != null || v.Kills > 0) && !v.PlayedOnACapLoadout(o.LevelCap);
+    private static bool Counts(Visit v, TrackerOptions o) => (v.Difficulty != null || v.Kills > 0) && !v.PlayedOnACapLoadout(o.CapOn(v));
 
-    /// <summary>Median active hours to gain each level, from finished journeys' crawls (index = level).</summary>
-    public static double[] HoursPerLevel(IEnumerable<Visit> finishedJourneyVisits, TrackerOptions o)
+    /// <summary>
+    /// Median active hours to gain each level, from finished journeys' crawls (index = level). The model reaches the highest level a
+    /// finished relevel reached (its top): a level nobody played has no hours (index at the top and above is NaN).
+    /// </summary>
+    public static double[] HoursPerLevel(IEnumerable<Visit> finishedJourneyVisits, TrackerOptions o, int? reached = null)
     {
-        var samples = new List<double>[o.LevelCap + 1];
-        for (int i = 0; i <= o.LevelCap; i++) samples[i] = new();
-        foreach (var v in finishedJourneyVisits.Where(v => v.LevelStart != null && v.LevelsGained > 0.05))
+        var finished = finishedJourneyVisits.ToList();
+        int top = Math.Min(o.MaxCap, reached ?? finished.Select(v => v.LevelEnd ?? 0).DefaultIfEmpty(0).Max());
+        var samples = new List<double>[o.MaxCap + 1];
+        for (int i = 0; i <= o.MaxCap; i++) samples[i] = new();
+        foreach (var v in finished.Where(v => v.LevelStart != null && v.LevelsGained > 0.05))
         {
             var s = VisitStats.From(v, v.EndTime, o);
             if (s.ActiveMinutes < Samples.MinActiveMinutes) continue;
             double hpl = s.ActiveMinutes / 60 / s.LevelsGained;
             // Spread the crawl's rate over the levels it covered.
             int a = v.LevelStart!.Value, b = Math.Max(a, (int)Math.Floor(a + s.LevelsGained - 0.001));
-            for (int L = a; L <= Math.Min(b, o.LevelCap - 1); L++) samples[L].Add(hpl);
+            for (int L = a; L <= Math.Min(b, top - 1); L++) samples[L].Add(hpl);
         }
-        var model = new double[o.LevelCap + 1];
-        for (int L = 1; L < o.LevelCap; L++) model[L] = samples[L].Count > 0 ? RouteAnalysis.Median(samples[L]) : double.NaN;
-        // Fill gaps from the nearest known levels.
-        for (int L = 1; L < o.LevelCap; L++)
+        var model = new double[o.MaxCap + 1];
+        Array.Fill(model, double.NaN);
+        for (int L = 1; L < top; L++) model[L] = samples[L].Count > 0 ? RouteAnalysis.Median(samples[L]) : double.NaN;
+        // Fill gaps from the nearest known levels (below the top).
+        for (int L = 1; L < top; L++)
         {
             if (!double.IsNaN(model[L])) continue;
             int lo = L - 1; while (lo >= 1 && double.IsNaN(model[lo])) lo--;
-            int hi = L + 1; while (hi < o.LevelCap && double.IsNaN(model[hi])) hi++;
-            model[L] = lo >= 1 && hi < o.LevelCap ? (model[lo] + model[hi]) / 2 : lo >= 1 ? model[lo] : hi < o.LevelCap ? model[hi] : double.NaN;
+            int hi = L + 1; while (hi < top && double.IsNaN(model[hi])) hi++;
+            model[L] = lo >= 1 && hi < top ? (model[lo] + model[hi]) / 2 : lo >= 1 ? model[lo] : hi < top ? model[hi] : double.NaN;
         }
         return model;
     }
 
+    /// <summary>The level the model's hours reach: the first level with none.</summary>
+    private static int TopOf(double[] model) { int t = 1; while (t < model.Length && !double.IsNaN(model[t])) t++; return t; }
+
     private static Journey WithEta(Journey j, double[] model, TrackerOptions o)
     {
-        if (model.Skip(1).Take(o.LevelCap - 1).Any(double.IsNaN)) return j;
-        double ModelHours(int a, int b) { double h = 0; for (int L = a; L < b && L < o.LevelCap; L++) h += model[L]; return h; }
-        double remaining = ModelHours(j.LevelNow, o.LevelCap);
+        int top = TopOf(model);
+        if (top <= 1 || j.LevelNow >= top || model.Skip(1).Take(top - 1).Any(double.IsNaN)) return j;
+        double ModelHours(int a, int b) { double h = 0; for (int L = a; L < b && L < top; L++) h += model[L]; return h; }
+        double remaining = ModelHours(j.LevelNow, top);
         double pace = 1;
         string note;
         double soFar = ModelHours(j.LevelFrom, j.LevelNow);
@@ -334,11 +363,11 @@ public static class Journeys
         // The rest of the way, level by level, at the finished trios' pace adjusted by this one's.
         var projection = new List<CurvePoint> { new(Math.Round(j.ActiveHours, 3), j.LevelNow) };
         double h = j.ActiveHours;
-        for (int L = j.LevelNow; L < o.LevelCap; L++)
+        for (int L = j.LevelNow; L < top; L++)
         {
             h += model[L] * pace;
             projection.Add(new(Math.Round(h, 3), L + 1));
         }
-        return j with { EtaHours = remaining * pace, Pace = pace, EtaNote = note, Projection = projection };
+        return j with { EtaHours = remaining * pace, Pace = pace, EtaNote = note, Projection = projection, EtaTo = top };
     }
 }

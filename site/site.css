@@ -97,6 +97,7 @@ code { font: 15px/1 Consolas, "Cascadia Mono", monospace; background: var(--inse
 .doc th, .doc td { text-align: left; vertical-align: top; padding: 9px 10px; border-bottom: 1px solid var(--line); }
 .doc th { color: var(--muted); font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; }
 .doc td { color: var(--soft); }
+.doc td p:first-child { margin-top: 0 }
 .doc .tablewrap { overflow-x: auto; }
 
 /* Changelog */

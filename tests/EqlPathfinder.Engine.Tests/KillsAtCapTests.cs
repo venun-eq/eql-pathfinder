@@ -145,7 +145,7 @@ public class KillsAtCapTests
             new Sharing.SharedDamage(1000, 900, 0, new Dictionary<string, long>(), new Dictionary<string, long> { ["Fireball"] = 1000 }),
             new Dictionary<string, int>(),
             new Sharing.SharedLoot(new Dictionary<int, int> { [5] = 4 }, new Dictionary<int, int>(), new Dictionary<int, int>(), new Dictionary<int, int>()),
-            new Sharing.CrawlDerived(0.1, 0.1, 0, 30, 0));
+            End: 0);
         var run = Community.CommunityBuilder.Visit(c, out var why);
         Assert.True(run != null, why);
         Assert.Equal(20, run!.Kills);
@@ -225,13 +225,13 @@ public class KillsAtCapTests
         var (e, s) = Run(swapped);
         var v = Assert.Single(s.Closed);                       // still a visit, so History shows it
         Assert.Equal(2, v.Kills);
-        Assert.True(v.PlayedOnACapLoadout(o.LevelCap));
+        Assert.True(v.PlayedOnACapLoadout(o.CapOn(v.Start, v.LevelStart)));
         Assert.Empty(Analysis.PlayFacts.From(s.Closed, e.State).Segments([], [], [], o).Segments);
         var p = Sharing.ShareBuilder.Build("0.7.1", "oggok", "Venun_oggok", new byte[16], s.Closed, [], s.Kills, [], e.State, o);
         Assert.Empty(p.Crawls);
 
         var (e2, s2) = Run(grey);
-        Assert.False(Assert.Single(s2.Closed).PlayedOnACapLoadout(o.LevelCap));
+        Assert.False(Assert.Single(s2.Closed).PlayedOnACapLoadout(o.CapOn(v.Start, v.LevelStart)));
         Assert.Single(Analysis.PlayFacts.From(s2.Closed, e2.State).Segments([], [], [], o).Segments);
         Assert.Single(Sharing.ShareBuilder.Build("0.7.1", "oggok", "Venun_oggok", new byte[16], s2.Closed, [], s2.Kills, [], e2.State, o).Crawls);
     }
@@ -247,14 +247,14 @@ public class KillsAtCapTests
             L("10:02:00", "You have slain a ghoul!"), L("10:02:00", "You gain experience!") };
         var (e, s) = Run(swapped);
         Assert.Equal(2, s.Kills.Count);
-        Assert.Empty(Analysis.FieldHunts.From(s.Kills, o.LevelCap));
+        Assert.Empty(Analysis.FieldHunts.From(s.Kills, o));
         Assert.Empty(Analysis.PlayFacts.From(s.Closed, e.State).Segments(s.Kills, [], [], o).Segments);
         Assert.Empty(Sharing.ShareBuilder.Build("0.7.1", "oggok", "Venun_oggok", new byte[16], s.Closed, [], s.Kills, [], e.State, o).Stretches);
 
         var grey = new[] { L("09:59:00", "You have gained a level! Welcome to level 30!"),
             L("10:01:00", "You have slain a rat!"), L("10:02:00", "You have slain a rat!") };
         var (_, s2) = Run(grey);
-        Assert.Single(Analysis.FieldHunts.From(s2.Kills, o.LevelCap));   // no XP lines at all: not touched
+        Assert.Single(Analysis.FieldHunts.From(s2.Kills, o));   // no XP lines at all: not touched
     }
 
     [Fact]

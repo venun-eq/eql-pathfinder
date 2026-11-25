@@ -53,7 +53,8 @@ $("#homeHero").addEventListener("click", e => {
 
 /** The journey of a relevel row the engine lists (Home's now or a parked row); none for one not played yet. */
 const journeyOf = (r, p) => p.journeyIndex != null ? r.journeys[p.journeyIndex] ?? null : null;
-const levelOf = (r, p) => { const j = journeyOf(r, p); return j ? j.reachedLevel : p.level; };
+/** The level a relevel is at, whole: a curve's level has a fraction in it. */
+const levelOf = (r, p) => { const j = journeyOf(r, p); return j ? Math.floor(j.reachedLevel) : p.level; };
 /** The open relevels that aren't on now, under the trio: trio and race, level, and the hours to go. */
 function parkedBlock(r, label) {
   const js = r.homeNow?.parked ?? [];
@@ -62,7 +63,7 @@ function parkedBlock(r, label) {
   return `<div style="margin-top: 12px"><div class="lbl">${label ?? PARKED + " relevel" + (js.length > 1 ? "s" : "")}</div>
     <div class="parked">${shown.map(p => { const j = journeyOf(r, p); return `<span><b style="font-weight: 600">${esc(p.trio)}</b> <span class="muted">${esc(p.race ?? "")}</span></span>
       <span class="num muted">${levelOf(r, p)} / ${cap()}</span>
-      ${j?.etaHours != null ? `<span class="num gold" style="white-space: nowrap">≈ ${fmt(j.etaHours)} h to go${infoTip("estimate")}</span>` : !j || j.crawls === 0 ? `<span class="dim">not played yet</span>` : "<span></span>"}`; }).join("")}</div>
+      ${j?.etaHours != null ? `<span class="num gold" style="white-space: nowrap">≈ ${fmt(j.etaHours)} h ${etaWords(j)}${infoTip("estimate")}</span>` : !j || j.crawls === 0 ? `<span class="dim">not played yet</span>` : "<span></span>"}`; }).join("")}</div>
     ${more > 0 ? `<button class="link" data-go="relevels" style="margin-top: 4px">+ ${more} more in History → Relevels</button>` : ""}</div>`;
 }
 
@@ -74,10 +75,12 @@ function renderHome() {
   let { mode, auto } = homeMode(r);
   const act = activeJourney();
   if (auto !== "farming") homePick = null;
-  if (mode === "relevel" && !act) mode = "leveling"; // on a relevel not played yet: no journey to draw, so Leveling
+  // On a relevel not played yet there is no journey to draw: Leveling's card, headed with the relevel the engine lists.
+  const unplayed = mode === "relevel" && !act ? r.homeNow.now : null;
+  if (unplayed) mode = "leveling";
   homeModeNow = mode;
   $("#homeHero").innerHTML = mode === "relevel" ? relevelHero(r, act) : mode === "farming" ? farmingHero(r, auto)
-    : mode === "between" ? betweenHero(r, auto) : mode === "swapped" ? swappedHero(r) : mode === "loadout" ? loadoutHero(r) : levelingHero(r);
+    : mode === "between" ? betweenHero(r, auto) : mode === "swapped" ? swappedHero(r) : mode === "loadout" ? loadoutHero(r) : levelingHero(r, unplayed);
   $("#homeMain").innerHTML = mode === "relevel" ? raceCard(act) : mode === "farming" ? dropsCard() : relevelsCard();
   $("#homeSide").innerHTML = mode === "relevel" ? splitsCard(act) + placesCard(act) : mode === "farming" ? farmList(r, `Where to farm at ${cap()}`) + doneCard(r)
     : mode === "between" ? farmList(r, `Or farm at ${cap()}`) : "";
@@ -102,7 +105,8 @@ function relevelHero(r, act) {
   // Am I on pace (docs/pace.md)? Kill speed is yours; hours against your best are re-figured for this trio's XP penalty.
   const kp = act.killPace, word = kp?.word, best = cmp[0];
   const top = (act.trio ?? "").split("/").map(k => r.classes?.find(c => c.key === k)).filter(Boolean).sort((a, b) => b.rank - a.rank)[0];
-  const xpChip = act.rank > 0 ? `<span class="chip xp" title="${xpTip(xpOf(act.rank))} The most-reincarnated of your trio and race sets it.">${xpWords(xpOf(act.rank))}${top?.rank ? ` · ${esc(top.name)} ×${top.rank}` : ""}</span>` : "";
+  const pastOld = newLv() && lv >= newLv().from;
+  const xpChip = pastOld ? xpPastChip(act.trio, act.rank) : act.rank > 0 ? `<span class="chip xp" title="${xpTip(xpOf(act.rank))}${xpNewTip()} The most-reincarnated of your trio and race sets it.">${xpWords(xpOf(act.rank))}${top?.rank ? ` · ${esc(top.name)} ×${top.rank}` : ""}</span>` : "";
   const ahead = nw?.ahead ?? null;
   const aheadText = ahead == null ? "" : Math.abs(ahead) < 1 / 60 ? "Even with your best"
     : `${Math.abs(ahead) >= 1 ? fmt(Math.abs(ahead)) + " h" : fmt(Math.abs(ahead) * 60, 0) + " min"} ${ahead > 0 ? "ahead of" : "behind"} your best ${atWord(kind)}`;
@@ -122,7 +126,7 @@ function relevelHero(r, act) {
           <div class="dim" style="font-size: 12px; margin-top: 4px; max-width: 620px; line-height: 1.45">${sentence}</div></div>` : ""}</div>
       <div style="text-align: right">
         <div class="big num">${act.levelNow}<span style="font-size: 18px; color: var(--faint); font-weight: 500"> / ${cap()}</span></div>
-        <div class="num muted" style="margin-top: 6px">${fmt(act.activeHours)} h so far${act.etaHours != null ? ` · <span style="white-space: nowrap"><b class="gold">≈ ${fmt(act.etaHours)} h to go</b>${infoTip("estimate")}</span>` : ""}</div>
+        <div class="num muted" style="margin-top: 6px">${fmt(act.activeHours)} h so far${act.etaHours != null ? ` · <span style="white-space: nowrap"><b class="gold">≈ ${fmt(act.etaHours)} h ${etaWords(act)}</b>${infoTip("estimate")}</span>` : ""}</div>
       </div>
     </div>
     <div class="rstrip${staleIf(wait)}" style="margin-top: 16px">${relevelStops(act, lv).map(x => stopSeg(x, { mode: "level" })).join("")}${askSegs(legs, { dashed: true })}${gapSegs(r.home?.route?.gaps)}
@@ -295,7 +299,7 @@ function betweenHero(r, auto) {
         <div class="muted" style="margin-top: 5px; line-height: 1.45">${why}From your campaign.</div>
       </div>
       <div style="text-align: right; flex: none">
-        <div class="big num gold" title="${xpTip(nextXp)}">+${fmt((nextXp - 1) * 100, 0)}%</div>
+        <div class="big num gold" title="${xpTip(nextXp)}${xpNewTip()}">+${fmt((nextXp - 1) * 100, 0)}%</div>
         <div class="dim num" style="margin-top: 6px; font-size: 12px">XP to level, ${guess ? "if it's your first" : `rank ${top.rankAfter}`}${infoTip("xp")}</div>
       </div>
     </div>` : `<div class="muted">Pick the passive ranks you're after and Campaign lays out every reincarnation toward them. <button class="link" data-go="campaign">Plan it →</button></div>`}
@@ -474,24 +478,33 @@ function loadoutHero(r) {
     ${parkedBlock(r, "Open relevels")}`;
 }
 
-function levelingHero(r) {
-  const lvl = r.currentLevel ?? 1, route = r.home?.route, legs = route?.legs ?? [], next = suggestedRoute();
+/** `relevel`: the open relevel on now that has no crawl yet (the engine's row), so the card says which one it is. */
+function levelingHero(r, relevel = null) {
+  const lvl = relevel ? relevel.level : r.currentLevel ?? 1, route = r.home?.route, legs = route?.legs ?? [], next = suggestedRoute(), nl = newLv();
+  const noRoute = nl && lvl >= nl.from && !legs.length;
+  const trioRank = (r.currentTrio ?? "").split("/").map(k => r.classes?.find(c => c.key === k)?.rank ?? 0).reduce((a, b) => Math.max(a, b), 0);
+  // A relevel not played yet has no journey to take the penalty from: the trio's top class sets it, at every level.
+  const top = relevel ? (relevel.trio ?? "").split("/").map(k => r.classes?.find(c => c.key === k)).filter(Boolean).sort((a, b) => b.rank - a.rank)[0] : null;
+  const chip = nl && lvl >= nl.from ? xpPastChip(r.currentTrio, trioRank)
+    : relevel && top?.rank > 0 ? `<span class="chip xp" title="${xpTip(xpOf(top.rank))}${xpNewTip()} The most-reincarnated of your trio and race sets it.">${xpWords(xpOf(top.rank))} · ${esc(top.name)} ×${top.rank}</span>` : "";
   return `
     <div class="between" style="align-items: flex-start">
-      <div><div class="lbl">Leveling</div>
-        <div class="trio">${r.currentTrio ? trioSpaced(r.currentTrio) : "Your character"}</div>
+      <div><div class="lbl">${relevel ? `Leveling now · relevel ${relevel.number}` : "Leveling"}</div>
+        <div class="trio">${r.currentTrio ? trioSpaced(r.currentTrio) : "Your character"}${relevel?.race ? ` <span class="race">${esc(relevel.race)}</span>` : ""}</div>
+        ${chip ? `<div style="margin-top: 8px">${chip}${infoTip("xp")}</div>` : ""}
         ${parkedBlock(r)}</div>
       <div style="text-align: right">
         <div class="big num">${lvl}<span style="font-size: 18px; color: var(--faint); font-weight: 500"> / ${cap()}</span></div>
+        ${relevel ? `<div class="num muted" style="margin-top: 6px">not played yet</div>` : ""}
         ${legs.length ? `<div class="num muted${staleIf(goalWaiting())}" style="margin-top: 6px"><b class="gold">≈ ${fmt(route.minutes / 60)} h to ${cap()}</b> by Ask's route${route.gaps?.length ? `, for ${route.to - route.from - route.gaps.length} of ${route.to - route.from} levels` : ""}</div>` : ""}
       </div>
     </div>
     ${legs.length ? `<div class="rstrip${staleIf(goalWaiting())}" style="margin-top: 16px">${askSegs(legs, { dashed: true })}${gapSegs(route.gaps)}<div class="rhere" style="left: calc(${pct(lvl)}% - 1px)" title="level ${lvl}"></div></div>${levelTicks()}` : ""}
     <div class="between" style="margin-top: 8px">
-      <span class="sub">${next.length ? `Next: ${esc(next[0].zone)}${next[0].to < cap() ? " until " + next[0].to : ""}${next[1] ? ", then " + esc(next[1].zone) : ""}.` : "Ask fills in a route once you've played a few places at these levels."}</span>
+      <span class="sub">${next.length ? `Next: ${esc(next[0].zone)}${next[0].to < cap() ? " until " + next[0].to : ""}${next[1] ? ", then " + esc(next[1].zone) : ""}.` : noRoute ? `${esc(noRouteHead())}: ${esc(noRouteSub(!!r.home?.community))}` : "Ask fills in a route once you've played a few places at these levels."}</span>
       <div style="text-align: right; flex: none; margin-left: auto"><button class="link" data-go="ask" data-ask-q="level">Ask: where to level →</button></div>
     </div>
-    ${kindLine()}`;
+    ${noRoute ? "" : kindLine()}`;
 }
 
 // ---------------------------------------------------------------- Up next and the roster
@@ -504,7 +517,7 @@ function renderUpNext(r, act, showIdea) {
     const nx = isNow ? suggestedRoute() : [];
     const where = nx.length ? ` Next: ${esc(nx[0].zone)}${nx[0].to < cap() ? " until " + nx[0].to : ""}${nx[1] ? ", then " + esc(nx[1].zone) : ""}.` : "";
     steps.push({ title: `Finish ${esc(p.trio)}${p.race ? " " + esc(p.race) : ""}`,
-      text: `${levelOf(r, p)} → ${cap()}${j?.etaHours != null ? ` in about ${fmt(j.etaHours)} active hours` : !j || j.crawls === 0 ? ", not played yet" : ""}.${where}${isNow || !known ? "" : " " + PARKED + "."}` });
+      text: `${levelOf(r, p)} → ${cap()}${j?.etaHours != null ? (etaWords(j) === "to go" ? ` in about ${fmt(j.etaHours)} active hours` : `, about ${fmt(j.etaHours)} active hours ${etaWords(j)}`) : !j || j.crawls === 0 ? ", not played yet" : ""}.${where}${isNow || !known ? "" : " " + PARKED + "."}` });
   }
   const never = r.classes.filter(c => c.rank === 0);
   const top = campNext();

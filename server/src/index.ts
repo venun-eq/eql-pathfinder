@@ -5,7 +5,7 @@ import { authenticate, limitApi } from "./auth.ts";
 import type { Env } from "./env.ts";
 import { attachShot, cleanShots, feedback, limitFeedback, MAX_SHOT, myReports, roadmap, vote } from "./feedback.ts";
 import { HttpError, json } from "./http.ts";
-import { claim, config, enroll, forget, link, me, register, summaries } from "./sharing.ts";
+import { claim, config, enroll, forget, link, me, register, summaries, withdraw } from "./sharing.ts";
 import { forgetUsage, limitUsage, USAGE_MAX_BODY, usage } from "./usage.ts";
 import { nowS } from "./util.ts";
 
@@ -142,10 +142,13 @@ async function route(request: Request, env: Env): Promise<Response> {
       ? MAX_BODY
       : method === "POST" && (path === "/v1/link" || path === "/v1/link/claim")
         ? MAX_SMALL_BODY
-        : MAX_TINY_BODY;
+        : method === "POST" && path === "/v1/units/withdraw"
+          ? MAX_SMALL_BODY // 200 ids are about 9 KB
+          : MAX_TINY_BODY;
   const body = await readBody(request, maxSignedBody);
   const who = await authenticate(request, env, method, path, body);
   if (method === "POST" && path === "/v1/summaries") return summaries(request, env, who, body);
+  if (method === "POST" && path === "/v1/units/withdraw") return withdraw(env, who, body);
   if (method === "GET" && path === "/v1/me") return me(env, who);
   if (method === "DELETE" && path === "/v1/me") return forget(env, who);
   if (method === "POST" && path === "/v1/link") return link(env, who, body);

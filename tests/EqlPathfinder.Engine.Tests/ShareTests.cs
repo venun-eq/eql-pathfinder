@@ -117,11 +117,10 @@ public class ShareTests
         Assert.Equal(crawl.Hash, ShareUnits.From(p with { AppVersion = "9.9.9" })[3].Hash);
         Assert.Equal(crawl.Hash, ShareUnits.From(p with { Engine = p.Engine + 1 })[3].Hash);
         var c0 = p.Crawls[0];
-        Assert.Equal(crawl.Hash, ShareUnits.From(p with { Crawls = [c0 with { Derived = c0.Derived with { ActiveMinutes = 99 } }] })[3].Hash);
         Assert.NotEqual(crawl.Hash, ShareUnits.From(p with { Crawls = [c0 with { Deaths = [1, 2] }] })[3].Hash);
         Assert.NotEqual(crawl.Hash, ShareUnits.From(p with { Schema = p.Schema + 1 })[3].Hash);
-        // What's uploaded still carries the derived numbers, as a cross-check.
-        Assert.Contains("\"derived\":", ShareUnits.Unzip(crawl.Facts));
+        // What's uploaded carries facts only: the job works every number out from them (share-without-derived).
+        Assert.DoesNotContain("\"derived\":", ShareUnits.Unzip(crawl.Facts));
         var batch = Assert.Single(ShareUnits.Batches(p, units));
         Assert.Equal(p.Character, batch.Character);
         Assert.Equal(6, batch.Rows.Count);
@@ -150,7 +149,7 @@ public class ShareTests
     {
         var salt = Enumerable.Range(1, 16).Select(i => (byte)i).ToArray();
         var p = Build(salt);
-        Assert.Equal(4, p.Schema);
+        Assert.Equal(5, p.Schema);
         var crawl = Assert.Single(p.Crawls);
         Assert.Equal("2026-11-11", crawl.Day);
         Assert.Equal("PAL/MNK/ENC", crawl.Trio);
@@ -160,14 +159,16 @@ public class ShareTests
         // Each kill: seconds into the crawl, XP %, party, kill time, level. The second gave party experience.
         Assert.Equal(["[290,60,0,null,1]", "[590,30,1,null,2]"], crawl.Kills.Select(k => k.Json));
         Assert.Equal(["[590,2]"], crawl.Dings.Select(d => d.Json));
-        Assert.Equal(0.9, crawl.Derived.KillLevels, 3);
         // Schema 4: the facts the job works active time out from agree with what the app sent.
         Assert.NotNull(crawl.End);
         Assert.NotNull(crawl.Pauses);
         var (levels, killLevels, active) = CommunityBuilder.Recompute(crawl);
-        Assert.Equal(crawl.Derived.Levels, levels, 3);
-        Assert.Equal(crawl.Derived.KillLevels, killLevels, 3);
-        Assert.Equal(crawl.Derived.ActiveMinutes, active, 2);
+        Assert.Equal(0.9, levels, 3);
+        Assert.Equal(0.9, killLevels, 3);
+        var (e2, s2) = Run();
+        var built = Assert.Single(s2.Closed);
+        Assert.True(active > 0);
+        Assert.Equal(ActiveTime.Minutes(built, new TrackerOptions().IdleThresholdSeconds, e2.State.LastTime ?? DateTime.Now), active, 3);
         // Reincarnations come first in the order, then the crawl, then the rat hunted outside.
         Assert.Equal([1, 2, 3], p.Reincarnations.Select(r => r.Seq));
         Assert.Equal(4, crawl.Seq);

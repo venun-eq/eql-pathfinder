@@ -1,13 +1,13 @@
 namespace EqlPathfinder.Engine.Model;
 
 /// <summary>
-/// Server-enforced minimum entry levels per zone. Client data files do not store level gates and historical logs
-/// can predate a gate's introduction, so gates are maintained explicitly here. Ask filters out gated zones below level.
-/// numbers (they can't be repeated).
+/// Server-enforced minimum entry levels per zone, maintained explicitly here: client data files do not store level gates.
+/// Ask filters out gated zones below level. The planes have always needed 46: a visit read below that is a loadout at the cap
+/// the player swapped to with no /who since, so its level is the last one seen (docs/log-formats.md, 11-20), not a time before a rule.
 /// </summary>
 public static class ZoneGates
 {
-    /// <summary>The planes open at 46 (2026-11, and General chat from 10-14 on: "after 46 Planes are quick").</summary>
+    /// <summary>The planes have always opened at 46 (General chat from 10-14 on: "after 46 Planes are quick").</summary>
     private static readonly (string Zone, int Level)[] Gates =
     [
         ("Plane of Hate", 46),

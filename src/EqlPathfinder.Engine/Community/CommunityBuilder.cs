@@ -95,8 +95,9 @@ public static class CommunityBuilder
     /// <summary>The idle threshold the job works active time out with: the app's (<see cref="Tracking.TrackerOptions"/>).</summary>
     public static readonly double IdleThresholdSeconds = new Tracking.TrackerOptions().IdleThresholdSeconds;
 
-    /// <summary>The level cap the job reads kills against: the app's. A kill at it adds no XP to a visit (the tracker's EmitKill).</summary>
-    private static readonly int LevelCap = new Tracking.TrackerOptions().LevelCap;
+    /// <summary>The level cap of a unit's day (the player's local day, yyyy-MM-dd): the app's list of expansions read the way its tracker reads a kill (<see cref="Tracking.Expansions.CapOn"/>). A kill at it adds no XP to a visit (the tracker's EmitKill). A day that does not parse reads as today.</summary>
+    private static int CapOn(string? day, double level) =>
+        Tracking.Expansions.CapOn(Tracking.Expansions.All, DateTime.TryParseExact(day, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : DateTime.Today, (int)level);
 
     public static readonly JsonSerializerOptions Json = new()
     {
@@ -130,9 +131,11 @@ public static class CommunityBuilder
         if (day <= RouteAnalysis.FarmPatch.Date && DddShare(c) >= 0.5) return null;
         why = "during a bonus-XP event";   // faster than the place gives (the app leaves it out of its own Ask too)
         if (c.Bonus == true) return null;
+        why = "from before schema 4";   // no end time: the active minutes can't be worked out from the facts
+        if (c.End == null) return null;
         var (levels, killLevels, active) = Recompute(c);
         why = "impossible time or levels";
-        if (!double.IsFinite(active) || !double.IsFinite(levels) || !double.IsFinite(killLevels) || active < 0 || active > 600 || levels < 0 || levels > 49) return null;
+        if (!double.IsFinite(active) || !double.IsFinite(levels) || !double.IsFinite(killLevels) || active < 0 || active > 600 || levels < 0 || levels > CapOn(c.Day, 0) - 1) return null;
         if (active >= 3 && levels / (active / 60) > 60) return null;
         // Reject impossible level spans (e.g., from mid-crawl loadout swaps): a crawl cannot lose levels
         // or span 2+ levels on less than 1 level of XP (reward-only 49->50 dings and cap farming stay valid).
@@ -154,14 +157,13 @@ public static class CommunityBuilder
         return new LevelingSegment(LevelingSegment.PlaceName(c.Zone, c.Difficulty), LevelingSegment.ZoneName(c.Zone), c.Difficulty, day.AddHours(12), c.LevelStart,
             active, levels, t5, loot.MoteHighTierT5 + FragmentValue * loot.FragmentHighTierT5, frags, kills.Count, deaths.Count, dps, c.Rank,
             c.Difficulty != null ? "crawl" : "instance", PartyShare(kills), c.Trio)
-        { KillLevels = killLevels, Loot = loot, XpKills = KnownXpKills(kills), Completed = c.Completed };
+        { KillLevels = killLevels, Loot = loot, XpKills = KnownXpKills(kills, c.Day), Completed = c.Completed, Cap = CapOn(c.Day, c.LevelStart ?? 0) };
     }
 
     /// <summary>
     /// A crawl's levels and active minutes worked out from its facts, as the app works them out from its own records:
     /// levels are the kills' XP plus the rewards' share; active time is the time inside less idle (<see cref="ActiveTime"/>).
-    /// Idle needs the pauses and end (schema 4); a crawl from an older app without them keeps the active minutes it was
-    /// sent with (<see cref="SharedCrawl.Derived"/>), until that app re-sends it.
+    /// Idle needs the end (schema 4); a crawl without one has no active minutes (NaN), and the job leaves it out.
     /// </summary>
     public static (double Levels, double KillLevels, double ActiveMinutes) Recompute(SharedCrawl c)
     {
@@ -170,11 +172,11 @@ public static class CommunityBuilder
         foreach (var k in c.Kills ?? [])
         {
             if (Num(k, 0) is { } t) killTimes.Add(t);
-            if (Num(k, 4) is { } lvl && lvl >= LevelCap) continue;   // at the cap the app counts no XP for a kill
+            if (Num(k, 4) is { } lvl && lvl >= CapOn(c.Day, lvl)) continue;   // at the cap the app counts no XP for a kill
             killXp += Num(k, 1) ?? 0;
         }
         double rewardXp = (c.Rewards ?? []).Sum(r => Num(r, 1) ?? 0);
-        double active = c.Derived?.ActiveMinutes ?? double.NaN;
+        double active = double.NaN;
         if (c.End is { } end)
         {
             if (!double.IsFinite(c.ActiveSeconds) || c.ActiveSeconds < 0 || end < 0)
@@ -183,8 +185,7 @@ public static class CommunityBuilder
             {
                 killTimes.Sort();
                 var pauses = (c.Pauses ?? []).Where(p => p is { Length: >= 2 }).Select(p => ((double)p[0], (double)p[1])).ToList();
-                double idle = Math.Min(ActiveTime.IdleSeconds(killTimes, end, pauses, IdleThresholdSeconds), c.ActiveSeconds);
-                active = Math.Max(0, c.ActiveSeconds - idle) / 60;
+                active = ActiveTime.Minutes(c.ActiveSeconds, killTimes, end, pauses, IdleThresholdSeconds);
             }
         }
         return ((killXp + rewardXp) / 100, killXp / 100, active);
@@ -192,14 +193,14 @@ public static class CommunityBuilder
 
     /// <summary>
     /// An open-world stretch's minutes and levels from its kill rows, as the app's <see cref="FieldHunts"/> works them out:
-    /// first kill to last, plus a minute for the first pull, and the kills' XP. No kills: what it was sent with.
+    /// first kill to last, plus a minute for the first pull, and the kills' XP. No kills: NaN, and the hunt is left out.
     /// </summary>
     public static (double Minutes, double Levels) Recompute(SharedStretch s)
     {
         var kills = s.Kills ?? [];
         var times = kills.Select(k => Num(k, 0)).OfType<double>().ToList();
-        if (times.Count == 0) return s.Derived != null ? (s.Derived.Minutes, s.Derived.Levels) : (double.NaN, double.NaN);
-        return ((times.Max() - times.Min()) / 60 + 1, kills.Sum(k => Num(k, 1) ?? 0) / 100);
+        if (times.Count == 0) return (double.NaN, double.NaN);
+        return (ActiveTime.OpenWorldMinutes(times.Min(), times.Max()), kills.Sum(k => Num(k, 1) ?? 0) / 100);
     }
 
     /// <summary>A crawl's loot in parts: motes at their T5-eq and fragments at 1× a same-tier mote, all and above T5.</summary>
@@ -213,15 +214,15 @@ public static class CommunityBuilder
         static void Add(int tier, int n, ref double all, ref double high)
         {
             if (tier is < 1 or > 10 || n <= 0) return;
-            double v = n * MoteTiers.T5Value((MoteTier)tier);
+            double v = Valuation.T5((MoteTier)tier, n, false, 1);
             all += v;
             if (MoteTiers.IsHighTier((MoteTier)tier)) high += v;
         }
     }
 
     /// <summary>The kills whose XP the log sized: rows with a number in xp. A null is an XP line with no percent, left out of XP per kill (kills-at-cap).</summary>
-    private static int KnownXpKills(IReadOnlyList<CompactRow>? kills) =>
-        kills == null ? 0 : kills.Count(k => Num(k, 1) != null && !(Num(k, 4) is { } lvl && lvl >= LevelCap));
+    private static int KnownXpKills(IReadOnlyList<CompactRow>? kills, string? day) =>
+        kills == null ? 0 : kills.Count(k => Num(k, 1) != null && !(Num(k, 4) is { } lvl && lvl >= CapOn(day, lvl)));
 
     /// <summary>Position <paramref name="i"/> of a compact row, when it's a number.</summary>
     private static double? Num(CompactRow row, int i)
@@ -287,7 +288,7 @@ public static class CommunityBuilder
         if (s.Bonus == true) return null;
         var d = Recompute(s);
         why = "impossible time or levels";
-        if (!double.IsFinite(d.Minutes) || !double.IsFinite(d.Levels) || d.Minutes <= 0 || d.Minutes > 600 || d.Levels < 0 || d.Levels > 49) return null;
+        if (!double.IsFinite(d.Minutes) || !double.IsFinite(d.Levels) || d.Minutes <= 0 || d.Minutes > 600 || d.Levels < 0 || d.Levels > CapOn(s.Day, 0) - 1) return null;
         if (d.Minutes >= 3 && d.Levels / (d.Minutes / 60) > 60) return null;
         // Prefer the stretch's own trio/rank; fall back to the same day's nearest shared crawl for older clients.
         var near = s.Trio == null ? playerCrawls.Where(c => c.Day == s.Day).MinBy(c => Math.Abs(c.Seq - s.Seq)) : null;
@@ -302,7 +303,7 @@ public static class CommunityBuilder
         why = null;
         return new LevelingSegment(LevelingSegment.OpenPlace(zone), LevelingSegment.ZoneName(zone), null, day.AddHours(12), firstLevel,
             d.Minutes, d.Levels, 0, 0, 0, kills.Count, 0, 0, rank, "open world", PartyShare(kills), trio)
-        { KillLevels = d.Levels, XpKills = KnownXpKills(kills) };
+        { KillLevels = d.Levels, XpKills = KnownXpKills(kills, s.Day), Cap = CapOn(s.Day, firstLevel ?? 0) };
     }
 
     /// <summary>The level at a stretch's first kill (kill rows are [t, xp, party, secs, level]).</summary>

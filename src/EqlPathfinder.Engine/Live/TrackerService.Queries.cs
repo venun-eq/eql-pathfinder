@@ -35,7 +35,7 @@ public sealed partial class TrackerService
         {
             List<KillRecord> field;
             lock (_historyLock) field = _fieldKills.ToList();
-            _journeys = Analysis.Journeys.Build(Facts(), s, _options, FieldHunts.From(field, _options.LevelCap));
+            _journeys = Analysis.Journeys.Build(Facts(), s, _options, FieldHunts.From(field, _options));
             _journeysKey = key;
             _journeysBuilt = DateTime.Now;
         }
@@ -57,7 +57,7 @@ public sealed partial class TrackerService
             return st;
         }).ToList();
         Verdicts.AssignStops(rows);
-        Stretches.Assign(rows, Journeys(), _options.LevelCap);   // each row's stretch and its stop's kill pace, for the pages to draw
+        Stretches.Assign(rows, Journeys(), CapNow);   // each row's stretch and its stop's kill pace, for the pages to draw
         return rows;
     }
 
@@ -169,7 +169,7 @@ public sealed partial class TrackerService
         // Precompute kill pace across relevel crawls and History stretches so pages render without math.
         var rows = (history ?? History(5000)).ToList();
         var built = Journeys();
-        var stretches = Stretches.Describe(rows, built, o.LevelCap);   // the ids History already put on the rows
+        var stretches = Stretches.Describe(rows, built, CapNow);   // the ids History already put on the rows
         var byStart = built.OrderBy(j => j.Start).ToList();
         var journeys = built.Select(j => j with { KillPace = stretches.FirstOrDefault(st => st.Relevel == byStart.FindIndex(x => ReferenceEquals(x, j)))?.KillPace }).ToList();
         var classes = BuildClassRosterRows(s.Roster, o.EnteredCounts);
@@ -181,9 +181,9 @@ public sealed partial class TrackerService
         int lvl = s.Level ?? 1;
         var (kindOf, kindSource) = DifficultyMix.HomeKind(journeys, s.Trio);
         var homeKind = kindOf == null ? null : new { source = kindSource, trio = kindOf.Trio, trioKey = kindOf.TrioKey, mostly = kindOf.Mostly, farmed = kindOf.Farmed };
-        var home = AskPage(lvl < o.LevelCap
-            ? new AskQuery("level", lvl, o.LevelCap, kindOf?.Farmed == true ? "motes" : "fast", null, null, null)
-            : new AskQuery("farm", null, null, null, o.LevelCap, "patch", null));
+        var home = AskPage(lvl < CapNow
+            ? new AskQuery("level", lvl, CapNow, kindOf?.Farmed == true ? "motes" : "fast", null, null, null)
+            : new AskQuery("farm", null, null, null, CapNow, "patch", null));
 
         // Precompute race curves for the open relevel, Home's comparison kind, and the campaign's next run.
         planner ??= new(new CampaignRoles(ClassRoles.DefaultCarries, true), false);
@@ -191,13 +191,14 @@ public sealed partial class TrackerService
         {
             NewPlanner = NewPlannerView.Of(planner, SurvivalCheck.Of(journeys, o.FarmDifficulties), o.FarmDifficulties.Order().ToList()),
         };
-        var homeNow = HomeState.Of(s.Level, s.Trio, s.Race, o.LevelCap, s.Roster, journeys, s.Loadout);
+        var homeNow = HomeState.Of(s.Level, s.Trio, s.Race, CapNow, s.Roster, journeys, s.Loadout);
         int curRank = (s.Trio?.Split('/') ?? []).Select(c => s.Roster.Classes.GetValueOrDefault(c)?.Rank ?? 0).DefaultIfEmpty(0).Max();
-        var journeyRaces = JourneyRace.For(journeys, o.LevelCap, homeNow.Now?.JourneyIndex, kindOf?.Mostly, curRank, campaignView.Runs.FirstOrDefault(x => x.State == "next")?.Xp,
+        var journeyRaces = JourneyRace.For(journeys, CapNow, homeNow.Now?.JourneyIndex, kindOf?.Mostly, curRank, campaignView.Runs.FirstOrDefault(x => x.State == "next")?.Xp,
             home.Route.Legs.Count > 0 ? home.Route.Minutes : null, home.Route.Legs.Count > 0 ? home.Route.T5 : null, home.Route.Legs.Select(l => l.Minutes).ToList());
         return new
         {
-            levelCap = o.LevelCap,
+            levelCap = CapNow,
+            newLevels = NewLevels(),
             xpByRank = Planner.XpByRank,
             farmRate,
             farm,
@@ -221,6 +222,21 @@ public sealed partial class TrackerService
             campaign = campaignView,
             journeyRaces,
         };
+    }
+
+    /// <summary>
+    /// The levels the expansion in force raised the cap by, while pages have no numbers for them: its name, day, the old cap and the new, and the
+    /// trio's reincarnation count at the first new level (its XP to level there). Null before the expansion's day and for the first one.
+    /// </summary>
+    private object? NewLevels()
+    {
+        var list = _options.Expansions;
+        int at = -1;
+        for (int i = 0; i < list.Count; i++) if (list[i].From <= Now) at = i;
+        if (at < 1 || list[at].LevelCap <= list[at - 1].LevelCap) return null;
+        var from = list[at - 1].LevelCap;
+        var rank = _engine.State.Roster.TrioRankAt(_engine.State.Trio?.Split('/'), from + 1, _options.BaseCap);
+        return new { expansion = list[at].Name, day = list[at].From.ToString("yyyy-MM-dd"), from, to = list[at].LevelCap, rank };
     }
 
     private List<object> BuildClassRosterRows(Roster roster, IReadOnlyDictionary<string, EnteredCount> enteredCounts) =>
@@ -297,6 +313,14 @@ public sealed partial class TrackerService
             kills, events, _engine.State, _options, since, Facts());
     }
 
+    /// <summary>
+    /// <see cref="SharePayload"/> and whether it can be trusted to say what the app no longer builds, read together on the
+    /// tracker thread: false while a history read is going, the checkpoint is from an older engine, or no history was read
+    /// (docs/specs/share-without-derived.md).
+    /// </summary>
+    public ShareRead ShareRead(string appVersion, byte[] salt, DateTime? since = null) =>
+        new(SharePayload(appVersion, salt, since), HasHistory && !Importing && !NeedsRebuild && !_importFailed);
+
     /// <summary>The Ask page's tables from every source, solo and grouped together.</summary>
     public AskData AskData() => Analysis.AskData.From(AskSegments().Segments, RouteAnalysis.FarmPatch, Now, onlyWithRate: true);
 
@@ -337,7 +361,8 @@ public sealed partial class TrackerService
         // The trio you're on: its most-reincarnated class sets the XP every answer is for.
         int rank = (st.Trio?.Split('/') ?? []).Select(c => st.Roster.Classes.GetValueOrDefault(c)?.Rank ?? 0).DefaultIfEmpty(0).Max();
         return Pages.AskPage.Build(query, new AskInputs(segments, leftOut, openLeftOut, _options, st.Level ?? 1, st.Trio, rank,
-            CommunityForYou(), Now, bonusLeftOut, FarmRate: FarmRateNow()));
+            CommunityForYou(), Now, bonusLeftOut, FarmRate: FarmRateNow(),
+            RankAtLevel: L => st.Roster.TrioRankAt(st.Trio?.Split('/'), L, _options.BaseCap)));
     }
 
     /// <summary>

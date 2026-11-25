@@ -348,30 +348,6 @@ if (cmd is "import" or "status")
         Console.WriteLine($"  since the patch: {since.Count} hunts; old way {since.Count(st => EqlPathfinder.Engine.Community.CommunityBuilder.Hunt(st with { Trio = null, Rank = null }, crawls) != null)}, " +
             $"app's trio {since.Count(st => EqlPathfinder.Engine.Community.CommunityBuilder.Hunt(st, crawls) != null)}");
     }
-    if (Flag("--facts-check"))
-    {
-        // pathfinder status --db <copy> --facts-check: the community job works crawls' and hunts' levels and active minutes
-        // out from the shared facts (CommunityBuilder.Recompute). This compares that, for this history, with what the app
-        // works out from its own records (the "derived" it sends): they should agree but for rounding.
-        var payload = await svc.Query(x => x.SharePayload("check", EqlPathfinder.Engine.Sharing.ShareBuilder.NewSalt()));
-        var fc = payload.Crawls.Select(x => (x, R: EqlPathfinder.Engine.Community.CommunityBuilder.Recompute(x))).ToList();
-        var fs = payload.Stretches.Select(x => (x, R: EqlPathfinder.Engine.Community.CommunityBuilder.Recompute(x))).ToList();
-        static string Off(IEnumerable<double> diffs, double tol)
-        {
-            var d = diffs.ToList();
-            return d.Count == 0 ? "none" : $"{d.Count(x => x <= tol)} of {d.Count} within {tol}, worst {d.Max():0.###}";
-        }
-        Console.WriteLine($"crawls {fc.Count}: levels {Off(fc.Select(p => Math.Abs(p.R.Levels - p.x.Derived.Levels)), 0.002)}; " +
-            $"kill levels {Off(fc.Select(p => Math.Abs(p.R.KillLevels - p.x.Derived.KillLevels)), 0.002)}; " +
-            $"active minutes {Off(fc.Select(p => Math.Abs(p.R.ActiveMinutes - p.x.Derived.ActiveMinutes)), 0.1)}");
-        Console.WriteLine($"hunts {fs.Count}: minutes {Off(fs.Select(p => Math.Abs(p.R.Minutes - p.x.Derived.Minutes)), 0.05)}; " +
-            $"levels {Off(fs.Select(p => Math.Abs(p.R.Levels - p.x.Derived.Levels)), 0.002)}");
-        foreach (var p in fc.Where(p => Math.Abs(p.R.ActiveMinutes - p.x.Derived.ActiveMinutes) > 0.1).Take(5))
-            Console.WriteLine($"  active differs: {p.x.Day} {p.x.Zone} D{p.x.Difficulty}: facts {p.R.ActiveMinutes:0.00} vs app {p.x.Derived.ActiveMinutes:0.00} " +
-                $"({p.x.Kills.Count} kills, {p.x.Pauses?.Count ?? 0} pauses, end {p.x.End}, inside {p.x.ActiveSeconds:0} s)");
-        foreach (var p in fc.Where(p => Math.Abs(p.R.KillLevels - p.x.Derived.KillLevels) > 0.002))
-            Console.WriteLine($"  kill XP differs: {p.x.Day} {p.x.Zone} D{p.x.Difficulty}: kill rows {p.R.KillLevels:0.000} vs app {p.x.Derived.KillLevels:0.000}, {p.x.Kills.Count} kill rows ({p.x.Kills.Select(k => k.Json).Distinct().Count()} distinct), completed {p.x.Completed}, levels {p.x.LevelStart}-{p.x.LevelEnd}");
-    }
     if (Flag("--share-test"))
     {
         // pathfinder status --db <copy> --share-test [--api url]: sends this history under a throwaway key, times each
@@ -565,7 +541,7 @@ void PrintReincarnations()
     Console.WriteLine("\nROUTE OPTIONS BY BAND (since reincarnation began, by cost per level)");
     var era = EqlPathfinder.Engine.Analysis.RouteAnalysis.EraStart(st);
     var farmRate = EqlPathfinder.Engine.Analysis.RouteAnalysis.EffectiveFarmRate(EqlPathfinder.Engine.Analysis.RouteAnalysis.FarmRates(all, opts), opts);
-    foreach (var b in EqlPathfinder.Engine.Analysis.RouteAnalysis.Bands(opts.LevelCap))
+    foreach (var b in EqlPathfinder.Engine.Analysis.RouteAnalysis.Bands(opts.CapOn(DateTime.Now)))
     {
         var os = EqlPathfinder.Engine.Analysis.RouteAnalysis.LevelingOptions(all, b.Low, b.High, opts, era, farmRate).Take(4).ToList();
         Console.WriteLine($"  {b.Label,-6} " + string.Join(" | ", os.Select(x => $"{x.Label} n{x.Crawls} {x.LevelsPerHour:0.0}Lv/h {x.T5PerHour:0}T5/h cost {x.Cost:0.0}")));

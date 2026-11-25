@@ -80,7 +80,7 @@ export async function register(request: Request, env: Env, path: string, body: U
     salt: string | null = null,
     enrolledBy: string | null = null;
   let ipCount: D1PreparedStatement | null = null;
-  // New players per connection per day (off while sharing is invite-only). Linking another PC to a player never counts.
+  // New players per connection per day, with registration open (config max_new_players_per_ip; 0 = off). Linking another PC to a player never counts.
   if (!req.link && cfg.maxNewPlayersPerIp > 0) ipCount = await newPlayerLimit(request, env, cfg.maxNewPlayersPerIp);
   if (req.link) {
     await limitCodeGuesses(request, env);
@@ -286,6 +286,42 @@ export async function summaries(request: Request, env: Env, who: Who, body: Uint
   const results = await env.DB.batch(stmts);
   const accepted = results.slice(0, changed.length).reduce((n, r) => n + (r.meta?.changes || 0), 0);
   return json({ accepted, ignored: changed.length - accepted, unchanged: rows.length - changed.length });
+}
+
+/**
+ * Up to 200 unit ids of one character that this install sent last and its app no longer builds (a hunt whose id moved, a
+ * crawl a re-read put together differently), deleted. Only this install's own rows: a linked PC's stay, as it may still
+ * build them, and another player's are never touched. An id that isn't held is no error. One request of the day, no units.
+ */
+export async function withdraw(env: Env, who: Who, body: Uint8Array): Promise<Response> {
+  const req = parseJson(body);
+  const character = str(req.character, "character", 32);
+  if (!/^[0-9a-f]{8,32}$/.test(character)) throw bad("character");
+  if (!Array.isArray(req.ids) || req.ids.length === 0) throw bad("ids");
+  if (req.ids.length > MAX_ROWS_PER_UPLOAD)
+    throw new HttpError(413, "too_many_rows", "At most " + MAX_ROWS_PER_UPLOAD + " ids per call.");
+  const ids = (req.ids as unknown[]).map((id, i) => {
+    if (typeof id !== "string" || !/^[0-9a-f]{16,40}$/.test(id)) throw bad("ids[" + i + "]");
+    return id;
+  });
+  const day = today();
+  const used = await env.DB.prepare("SELECT requests FROM usage WHERE install = ? AND day = ?")
+    .bind(who.id, day)
+    .first<{ requests: number }>();
+  if ((used?.requests ?? 0) >= MAX_REQUESTS_PER_DAY)
+    throw new HttpError(429, "daily_limit", "Today's limit is reached; the rest goes tomorrow.", {
+      retryAfter: secondsToUtcMidnight(),
+    });
+  const [deleted] = await env.DB.batch([
+    env.DB.prepare(
+      "DELETE FROM units WHERE install = ? AND player = ? AND character = ? AND id IN (SELECT value FROM json_each(?))",
+    ).bind(who.id, who.player, character, JSON.stringify(ids)),
+    env.DB.prepare(
+      "INSERT INTO usage (install, day, units, requests, bytes) VALUES (?, ?, 0, 1, 0) " +
+        "ON CONFLICT (install, day) DO UPDATE SET requests = requests + 1",
+    ).bind(who.id, day),
+  ]);
+  return json({ withdrawn: deleted.meta?.changes || 0 });
 }
 
 function cfgLimit(raw: string | undefined, fallback: number): number {

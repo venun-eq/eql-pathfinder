@@ -18,7 +18,12 @@ public sealed record FieldStretch(DateTime Start, DateTime End, double Minutes, 
 public static class FieldHunts
 {
     /// <summary>Kills more than <paramref name="gapMinutes"/> apart, or in another zone, start a new stretch; the first kill counts a minute for its pull. A stretch played on a loadout at the cap (<see cref="FieldStretch.PlayedOnACapLoadout"/>) is left out.</summary>
-    public static List<FieldStretch> From(IEnumerable<KillRecord> kills, int levelCap, double gapMinutes = 4)
+    public static List<FieldStretch> From(IEnumerable<KillRecord> kills, int levelCap, double gapMinutes = 4) => From(kills, (_, _) => levelCap, gapMinutes);
+
+    /// <summary>The same, each kill read against the cap of its own day (<see cref="TrackerOptions.CapOn(DateTime, int?)"/>).</summary>
+    public static List<FieldStretch> From(IEnumerable<KillRecord> kills, TrackerOptions o, double gapMinutes = 4) => From(kills, o.CapOn, gapMinutes);
+
+    private static List<FieldStretch> From(IEnumerable<KillRecord> kills, Func<DateTime, int?, int> capOn, double gapMinutes)
     {
         var result = new List<FieldStretch>();
         var cur = new List<KillRecord>();
@@ -28,10 +33,10 @@ public static class FieldHunts
             var stretch = new FieldStretch(cur[0].Time, cur[^1].Time, ActiveTime.OpenWorldMinutes(cur[0].Time, cur[^1].Time),
                 cur.Sum(k => k.Percent) / 100, cur.Count, cur.Count(k => k.Party), cur[0].Zone, cur[0].Level, cur[^1].Level,
                 cur.Count(k => !k.XpUnknown), cur.Count(k => k.XpUnknown), cur.Count(k => !k.XpUnknown && k.Percent > 0));
-            if (!stretch.PlayedOnACapLoadout(levelCap)) result.Add(stretch);   // the stopgap until swap-zones: not a leveling hunt, not shared
+            if (!stretch.PlayedOnACapLoadout(capOn(stretch.Start, stretch.Level))) result.Add(stretch);   // the stopgap until swap-zones: not a leveling hunt, not shared
             cur = new List<KillRecord>();
         }
-        foreach (var k in kills.Where(k => k.VisitId == null && k.Level is { } l && l < levelCap).OrderBy(k => k.Time))
+        foreach (var k in kills.Where(k => k.VisitId == null && k.Level is { } l && l < capOn(k.Time, l)).OrderBy(k => k.Time))
         {
             if (cur.Count > 0 && ((k.Time - cur[^1].Time).TotalMinutes > gapMinutes || k.Zone != cur[^1].Zone)) Flush();
             cur.Add(k);

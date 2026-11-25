@@ -150,8 +150,12 @@ onHost(e => {
   if (page === "upgrade") requestUpgrade(); // loot since the counts were entered adds to the bank
 });
 
+/** What a level needs, from the expansion's list (reinc.newLevels): shown in the (i) and on Help, empty before the cap rises. */
+const newLevelsText = () => { const n = newLv(); return n ? `A level needs the extra XP only for the reincarnations made after your class or race reached it: levels ${n.from + 1} to ${n.to}, new with ${n.expansion}, need their usual XP until then.` : ""; };
+const newLevelsHelp = () => newLevelsText() ? `<p>${newLevelsText()}</p>` : "";
 function render() {
   if (!data) return;
+  $("#helpNewLevels").textContent = newLevelsText() ? " " + newLevelsText() : "";
   if (data.lootRows) lootRows = data.lootRows; // developer preview: inlined
   renderHome();
   renderCampaign();
@@ -229,15 +233,17 @@ const FARM_CHANGE = `<button class="link" data-go="settings" data-anchor="farmRa
 /** The farm rate in use and where it's from, with the link to change it (Ask, Upgrades). */
 const farmRateNote = (lead = "Farm rate") => data?.reinc?.farmSource
   ? `${lead} <b style="color: var(--text)">${fmt(data.reinc.farmRate, 0)} T5-eq/h</b>${infoTip("farmRate")}, ${farmFrom()}. ${FARM_CHANGE}` : "";
+/** A farm number: whole from 1 up, one decimal under 1, "under 0.1" under 0.05 (never a 0 that reads as a fact). */
+const farmNum = v => v == null || isNaN(v) ? "" : v < 0.05 ? "under 0.1" : v < 0.95 ? Number(v).toFixed(1) : Number(v).toFixed(0);
 /** The farm rate, where it's from, and your farming before and since the patch (Every place, Settings). */
 function farmLine(link) {
   const r = data.reinc, f = r?.farm, kind = r?.farmSource?.kind;
   if (!r) return "";
   // Your farming since the patch, less what the source above already says.
-  const mine = f?.crawls ? [kind !== "usual" && f.usual != null ? `${f.crawls === 1 ? `${fmt(f.usual, 0)} from 1 crawl` : `typical ${fmt(f.usual, 0)} over ${plural(f.crawls, "crawl")}`}` : "",
-    kind !== "best" && f.best != null ? `best ${esc(f.bestZone)} ${fmt(f.best, 0)}` : ""].filter(Boolean) : [];
+  const mine = f?.crawls ? [kind !== "usual" && f.usual != null ? `${f.crawls === 1 ? `${farmNum(f.usual)} from 1 crawl` : `typical ${farmNum(f.usual)} over ${plural(f.crawls, "crawl")}`}` : "",
+    kind !== "best" && f.best != null ? `best ${esc(f.bestZone)} ${farmNum(f.best)}` : ""].filter(Boolean) : [];
   const since = mine.length ? ` Your farming at ${farmWords(farmCounted())} since the patch: ${mine.join(", ")}.` : "";
-  const before = f?.preCrawls ? ` Before it: typical ${fmt(f.preUsual, 0)}` + (f.preBest != null ? `, best ${esc(f.preBestZone)} ${fmt(f.preBest, 0)}` : "") + "." : "";
+  const before = f?.preCrawls ? ` Before it: typical ${farmNum(f.preUsual)}` + (f.preBest != null ? `, best ${esc(f.preBestZone)} ${farmNum(f.preBest)}` : "") + "." : "";
   return `Farm rate <b style="color: var(--text)">${fmt(r.farmRate, 0)} T5-eq/h</b>, ${farmFrom()}.${since}${before}${link ? " " + FARM_CHANGE : ""}`;
 }
 function ranked(opts) {
@@ -275,12 +281,12 @@ const INFO = {
   },
   xp: {
     title: "+% XP to level", q: "What's the XP to level?",
-    body: "<p>Your reincarnation penalty: every level needs more XP, so the bar to fill is bigger. Mobs give the same XP; each kill just fills a smaller share of the bar.</p><p>It's 10% for each reincarnation of the most-reincarnated of your trio and race: a class reincarnated twice means +20%. Times Pathfinder compares are re-figured to the same XP to level.</p>",
+    get body() { return "<p>Your reincarnation penalty: every level needs more XP, so the bar to fill is bigger. Mobs give the same XP; each kill just fills a smaller share of the bar.</p><p>It's 10% for each reincarnation of the most-reincarnated of your trio and race: a class reincarnated twice means +20%. Times Pathfinder compares are re-figured to the same XP to level.</p>" + newLevelsHelp(); },
     help: "help-pace",
   },
   estimate: {
     title: "An estimate", q: "What does ≈ mean?",
-    body: "<p>An estimate, not a verdict: the hours a level your finished trios took at each level still ahead, for this trio's XP to level, scaled by how this relevel has gone so far. It moves as you play.</p><p>Whether a crawl went well is judged against your usual, on the overlay and in History.</p>",
+    get body() { const n = newLv(); return "<p>An estimate, not a verdict: the hours a level your finished trios took at each level still ahead, for this trio's XP to level, scaled by how this relevel has gone so far. It moves as you play.</p>" + (n ? `<p>Past ${n.from} there's nothing to time yet: nobody has played levels ${n.from + 1} to ${n.to}.</p>` : "") + "<p>Whether a crawl went well is judged against your usual, on the overlay and in History.</p>"; },
   },
   askEstimate: {
     title: "An estimate", q: "What does ≈ mean?",
@@ -288,7 +294,7 @@ const INFO = {
   },
   likeforlike: {
     title: "Mostly D4", q: "What does mostly D4 mean?",
-    body: "<p>More than half of a relevel's active hours were in crawls at that difficulty. Home compares a relevel only with yours played mostly at the same difficulty as Ask's route: a D4 relevel loots far more and levels slower than a D0 one, so their hours don't compare.</p><p>When no difficulty has more than half, the relevel is mixed, and compares only with other mixed ones. Fastest or Counting motes changes the route, and with it what you're compared with.</p>",
+    body: "<p>More than half of a relevel's active hours were in crawls at that difficulty. Home compares a relevel only with yours played mostly at the same difficulty as Ask's route: a D4 relevel loots far more and levels slower than a D0 one, so their hours don't compare.</p><p>When no difficulty has more than half, the relevel is mixed, and compares only with other mixed ones. Ask's route counts motes when this relevel, or your last, was mostly at difficulties you farm (<button class=\"link\" data-go=\"settings\" data-anchor=\"howYouPlay\">Settings → How you play</button>), and is the fastest otherwise. Home says which, with a link to ask it the other way.</p>",
     help: "help-pace",
   },
   completionist: {

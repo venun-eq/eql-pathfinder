@@ -276,6 +276,36 @@ public class TrackerServiceTests
         }
     }
 
+    [Fact]
+    public async Task TheLiveStepHoldsALoginSwapUntilTheWelcomeLine()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "pf-login-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var log = Path.Combine(dir, "eqlog_Venun_oggok.txt");
+        File.WriteAllLines(log,
+        [
+            "[Sun Nov 22 18:00:30 2026] [50 DRU/BRD/NEC] Venun (Iksar) ZONE: Befallen",
+            "[Sun Nov 22 19:00:30 2026] [47 PAL/WIZ/BER] Venun (Erudite) ZONE: Befallen",
+        ]);
+        try
+        {
+            using var store = new PathfinderStore(Path.Combine(dir, "t.db"));
+            store.AddLoadoutEvent("Venun_oggok", new DateTime(2026, 11, 22, 18, 0, 0), "swap", 4);
+            store.AddLoadoutEvent("Venun_oggok", new DateTime(2026, 11, 22, 19, 0, 0), "swap", 3);
+            using var svc = new TrackerService(store, new CharacterLogs("Venun", "oggok", log, [log]), new TrackerOptions(), new SetClock(new DateTime(2026, 11, 24, 17, 45, 40)));
+            await svc.ImportHistoryAsync();
+            store.AddLoadoutEvent("Venun_oggok", new DateTime(2026, 11, 24, 17, 45, 32), "swap", 4);
+            svc.Start();
+            int? Slot(TrackerService x) => ((PathfinderEngine)typeof(TrackerService).GetField("_engine", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(x)!).State.Loadout?.Slot;
+            await svc.Query(Slot);   // the first can run before the first Step
+            Assert.Equal(3, await svc.Query(Slot));   // no Welcome line read yet: the swap isn't taken
+        }
+        finally
+        {
+            try { Directory.Delete(dir, true); } catch (IOException) { }
+        }
+    }
+
     private sealed class SetClock(DateTime now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new DateTimeOffset(now, TimeZoneInfo.Local.GetUtcOffset(now)).ToUniversalTime();
